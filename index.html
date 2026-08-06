@@ -191,6 +191,50 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .ordtb .existing td{background:#fbfbf4;color:var(--dim)}
 .ordtb .pchip{display:inline-block;font-size:9px;font-weight:800;background:#eef2f7;color:var(--dim);border-radius:5px;padding:1px 6px;margin-left:2px}
 .ordwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff;max-height:74vh}
+/* coverage runway page */
+.covkpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:12px 0}
+.ckpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+.ckpi .cn{font-size:26px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
+.ckpi .cl{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-top:5px}
+.ckpi.crit{background:#fdf1f1;border-color:#f0b6b6}.ckpi.crit .cn{color:var(--red)}
+.ckpi.warn{background:#fdf7ea;border-color:#eecfa0}.ckpi.warn .cn{color:#b06d00}
+.ckpi.ok{background:#eef8f0;border-color:#b9e0c4}.ckpi.ok .cn{color:var(--green)}
+.covchips{display:flex;gap:7px;flex-wrap:wrap;margin:6px 0 12px}
+.covchip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:700;cursor:pointer;color:var(--dim)}
+.covchip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.covwrap{display:flex;flex-direction:column;gap:8px}
+.covrow{border:1px solid var(--line);border-left:4px solid #ccc;border-radius:10px;background:#fff;overflow:hidden}
+.covrow.critical{border-left-color:var(--red)}.covrow.expedite{border-left-color:#e0952a}.covrow.po{border-left-color:#3f7ac0}.covrow.full{border-left-color:var(--green)}
+.covmain{display:grid;grid-template-columns:52px 260px 1fr 250px;gap:14px;align-items:center;padding:11px 14px;cursor:pointer}
+.covmain:hover{background:#fafcff}
+.crank{text-align:center;font-size:20px;font-weight:800;color:var(--dim)}.crank small{display:block;font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.ccode{font-family:var(--mono);font-weight:700;font-size:13px}
+.cdesc{font-size:12px;color:var(--ink);margin:1px 0}
+.coh{font-size:10.5px;color:var(--faint)}
+.cfgs{margin-top:3px;display:flex;gap:3px;flex-wrap:wrap}
+.covfg{font-size:9px;font-weight:700;background:#eef2f7;color:var(--dim);border-radius:4px;padding:1px 5px}
+.covfg.more{background:#e6ebf1}
+.crunway{position:relative;height:34px}
+.ctrack{position:absolute;top:11px;left:0;right:0;height:12px;background:#f0f2f5;border-radius:6px;overflow:hidden}
+.cseg{position:absolute;top:0;height:100%}
+.cs-stock{background:#6fbf87}.cs-po{background:#e8b45a}.cs-gap{background:#e06a6a}
+.cdot{position:absolute;top:9px;width:8px;height:8px;border-radius:50%;background:#3f7ac0;border:1.5px solid #fff;transform:translateX(-50%);box-shadow:0 0 0 1px #3f7ac0}
+.cdot.late{background:var(--red);box-shadow:0 0 0 1px var(--red)}
+.ctoday{position:absolute;top:6px;height:22px;width:2px;background:#333;transform:translateX(-50%)}
+.clab{position:absolute;top:26px;font-size:8.5px;color:var(--faint);transform:translateX(-50%);white-space:nowrap}
+.cverdict{text-align:right}
+.ctill{font-size:10.5px;color:var(--dim);margin-bottom:4px}
+.cact{display:inline-block;font-size:10px;font-weight:800;border-radius:6px;padding:4px 8px;line-height:1.25;text-align:left}
+.a-crit{background:var(--red);color:#fff}.a-warn{background:#fdf0dd;color:#b06d00;border:1px solid #eecfa0}.a-po{background:#e8f0fb;color:#2f5da8;border:1px solid #b9d0f5}.a-ok{background:#e9f7ee;color:var(--green);border:1px solid #b9e0c4}
+.covrow .covdetail{display:none;padding:0 14px 14px 68px}
+.covrow.open .covdetail{display:block}
+.covtb{border-collapse:collapse;width:100%;font-size:11.5px;margin:4px 0 10px}
+.covtb th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);border-bottom:1px solid var(--line);padding:4px 8px}
+.covtb td{padding:4px 8px;border-bottom:1px solid #f2f2f2}
+.covtb .num{text-align:right;font-variant-numeric:tabular-nums}
+.covtb h4,.covdetail h4{font-size:11px;margin:4px 0}
+.latepill{font-size:9px;font-weight:800;background:var(--red);color:#fff;border-radius:4px;padding:1px 6px}
+@media(max-width:900px){.covkpis{grid-template-columns:repeat(3,1fr)}.covmain{grid-template-columns:40px 1fr;grid-auto-rows:auto}.crunway,.cverdict{grid-column:1/-1}.cverdict{text-align:left}}
 .scl .pull{font-style:normal;font-size:9.5px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:5px}
 .sec2{margin-left:auto;text-align:right;font-family:var(--mono);font-size:12px;color:var(--dim)}
 .sec2 b{display:block;font-size:15px;color:var(--ink)}
@@ -391,6 +435,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <button class="ptab on" id="tabBoard">📊 Board</button>
     <button class="ptab" id="tabPlan">🗓 Consumption Planner</button>
     <button class="ptab" id="tabOrders">📦 Order Schedule</button>
+    <button class="ptab" id="tabCover">🛡️ Coverage Runway</button>
   </nav>
   <div class="sb-lbl">Export</div>
   <div class="sb-actions">
@@ -431,6 +476,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <div class="set">Min swap qty <input id="setMinSwap" type="number" value="20000"></div>
     <div class="set">Ignore POs overdue &gt; <input id="setStale" type="number" value="3">d</div>
     <div class="set">Ignore PO remnants &lt; <input id="setRemnant" type="number" value="5000"></div>
+    <div class="set" title="DSC has committed the POs due on or before this date — they are frozen and won't be offered for swaps or adjustments">🔒 DSC locked thru <input id="setDscLock" type="date" style="width:140px"></div>
     <div class="set" id="hmPeriod" style="color:var(--faint)"></div>
   </div>
   <div class="bar floorbar">
@@ -459,6 +505,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
   <div class="pgrid" id="pgrid"></div>
   <div id="planner" style="display:none"></div>
   <div id="orders" style="display:none"></div>
+  <div id="coverage" style="display:none"></div>
   <div class="empty" id="empty"><b>Waiting for data</b>Upload Stock on Hand and Live PA to light up the board.</div>
 </div>
 </main>
@@ -567,7 +614,7 @@ const state={
   stock:null,pa:null,po:null,count:null,
   forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,
   files:{stock:null,pa:null,po:null,count:EMB.count?'built-in':null,dsc:null,swapdec:null,forecast:'built-in',bom:'built-in'},count:EMB.count||null,
-  rows:[],q:'',expanded:{},sec:{orders:true,swaps:true},page:'board',planMode:'wk',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},swaps:[],queue:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
+  rows:[],q:'',expanded:{},sec:{orders:true,swaps:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},swaps:[],queue:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
 };
 
@@ -1033,6 +1080,11 @@ function compute(){
     }
   }
   swaps.sort((a,b)=>((a.p.date?a.p.date.getTime():0)-(b.p.date?b.p.date.getTime():0)));
+  // ---- DSC lock window: POs due on/before this date are committed by DSC — cannot be swapped or adjusted ----
+  const lockStr=($('#setDscLock')||{}).value||'';
+  const lockDate=lockStr?new Date(lockStr+'T00:00:00'):null;
+  const isLocked=p=>lockDate&&p.date&&p.date<=lockDate;
+  for(const s of swaps)s.locked=isLocked(s.p);
   // ---- priority queue: PA firm orders first, forecast second ----
   const queue=out.filter(x=>x.active&&['out','exp','now','wk'].includes(x.cls)&&(!state.cust.size||x.custMatch)).sort((a,b)=>{
     const ap=a.paFirst?0:1,bp=b.paFirst?0:1;
@@ -1041,7 +1093,7 @@ function compute(){
     return ad-bd||((a.needBy??999)-(b.needBy??999))||b.daily-a.daily;
   });
   const DEC=state.swapDec||{pair:{},poNo:new Set()};
-  const usableSwaps=swaps.filter(s=>!DEC.poNo.has(s.p.po));
+  const usableSwaps=swaps.filter(s=>!DEC.poNo.has(s.p.po)&&!s.locked);
   const claimed=new Set();
   // pass 1: lock DSC-confirmed pairings
   for(const u of queue){
@@ -1446,17 +1498,145 @@ function paCoverGap(x){
   }
   return null;
 }
+/* ---------- coverage runway page ---------- */
+function coverageData(){
+  const T=today();const q=state.q.toLowerCase();
+  const src=state.rows.filter(x=>x.active&&x.totDem>1&&matchRow(x,q)&&(!state.cust.size||x.custMatch));
+  const items=src.map(x=>{
+    const dem=x.demArr,arr=x.arrArr,H=dem.length;
+    let cumD=0,cumA=0,stockDay=null,firstGap=null,lastDay=0,totalDemand=0;
+    for(let d=0;d<H;d++){
+      cumD+=dem[d];cumA+=arr[d];
+      if(dem[d]>0){lastDay=d;totalDemand=cumD;}
+      if(cumD<=x.onHand)stockDay=d;
+      if(firstGap==null&&(x.onHand+cumA-cumD)<-0.5)firstGap=d;
+    }
+    const totalPO=x.incoming||0;
+    const gapQty=Math.max(0,Math.round(totalDemand-x.onHand-totalPO));
+    const coveredTillPO=firstGap!=null?Math.max(0,firstGap-1):lastDay;
+    const lateCover=firstGap!=null&&gapQty<=0;
+    let status;
+    if(firstGap==null&&totalDemand<=x.onHand)status='full';
+    else if(firstGap==null)status='po';
+    else if(lateCover)status='expedite';
+    else status='critical';
+    return {x,onHand:x.onHand,totalDemand:Math.round(totalDemand),totalPO:Math.round(totalPO),
+      stockDay,coveredTillPO,firstGap,lastDay,gapQty,status,
+      poList:(x.pos||[]).map(p=>({po:p.po,qty:p.qty,day:p.date?Math.round((p.date-T)/DAY):null,date:p.date})),
+      drivers:(x.drivers||[]).slice().sort((a,b)=>(b.rate||0)-(a.rate||0))};
+  });
+  const rank={critical:0,expedite:1,po:2,full:3};
+  items.sort((a,b)=>rank[a.status]-rank[b.status]||((a.firstGap??a.lastDay)-(b.firstGap??b.lastDay))||b.totalDemand-a.totalDemand);
+  items.forEach((it,i)=>it.rank=i+1);
+  let tmax=1;items.forEach(it=>{tmax=Math.max(tmax,it.lastDay);it.poList.forEach(p=>{if(p.day!=null)tmax=Math.max(tmax,p.day);});});
+  return {T,items,tmax};
+}
+function renderCoverage(){
+  const el=$('#coverage');if(!state.rows.length){el.innerHTML='';return;}
+  const {T,items,tmax}=coverageData();
+  const flt=state.covFilter||'ALL';
+  const X=d=>Math.max(0,Math.min(100,(d/tmax)*100));
+  const cnt=s=>items.filter(i=>i.status===s).length;
+  const gapTotal=items.reduce((a,i)=>a+i.gapQty,0);
+  const firstOut=items.filter(i=>i.firstGap!=null).sort((a,b)=>a.firstGap-b.firstGap)[0];
+  const kfmt=n=>n>=1000?(n/1000).toFixed(n>=100000?0:1)+'k':String(n);
+  const kpis=`<div class="covkpis">
+    <div class="ckpi"><div class="cn">${items.length}</div><div class="cl">cans with demand</div></div>
+    <div class="ckpi crit"><div class="cn">${cnt('critical')}</div><div class="cl">place PO now</div></div>
+    <div class="ckpi warn"><div class="cn">${cnt('expedite')}</div><div class="cl">expedite open PO</div></div>
+    <div class="ckpi ok"><div class="cn">${cnt('po')+cnt('full')}</div><div class="cl">fully covered</div></div>
+    <div class="ckpi crit"><div class="cn">${kfmt(gapTotal)}</div><div class="cl">total can gap</div></div>
+    <div class="ckpi"><div class="cn" style="font-size:19px">${firstOut?dstr(addD(T,firstOut.firstGap)):'—'}</div><div class="cl">first stock-out</div></div>
+  </div>`;
+  const F=[['ALL','All'],['critical','Place PO'],['expedite','Expedite'],['po','PO covered'],['full','Stock covered']];
+  const chips=`<div class="covchips">${F.map(([k,l])=>`<button class="covchip ${flt===k?'on':''}" data-f="${k}">${l}${k!=='ALL'?' ('+cnt(k)+')':''}</button>`).join('')}</div>`;
+  const shown=items.filter(i=>flt==='ALL'||i.status===flt);
+  const actTxt=it=>it.status==='critical'?('PLACE PO ≥ '+fmt(Math.ceil(it.gapQty/1000)*1000)+' by '+dstr(addD(T,it.firstGap))+(it.totalPO>0?' + expedite PO':'')):
+    it.status==='expedite'?('EXPEDITE PO to before '+dstr(addD(T,it.firstGap))):
+    it.status==='po'?'Covered by open PO — confirm delivery':'Stock covers — no action';
+  const actCls={critical:'a-crit',expedite:'a-warn',po:'a-po',full:'a-ok'};
+  const rows=shown.map((it,idx)=>{
+    const x=it.x;
+    const stockEnd=it.stockDay!=null?X(it.stockDay):0;
+    const poEnd=X(it.coveredTillPO);
+    const demEnd=X(it.lastDay);
+    const seg=`<div class="cseg cs-stock" style="left:0;width:${stockEnd}%"></div>
+      ${poEnd>stockEnd?`<div class="cseg cs-po" style="left:${stockEnd}%;width:${poEnd-stockEnd}%"></div>`:''}
+      ${it.firstGap!=null?`<div class="cseg cs-gap" style="left:${poEnd}%;width:${Math.max(1.5,demEnd-poEnd)}%"></div>`:''}`;
+    const dots=it.poList.filter(p=>p.day!=null).map(p=>`<div class="cdot ${it.firstGap!=null&&p.day>it.firstGap?'late':''}" style="left:${X(p.day)}%" title="PO ${p.po} · ${fmt(p.qty)} · due ${dstr(p.date)}"></div>`).join('');
+    const covered=it.firstGap!=null?`covered till <b>${dstr(addD(T,it.coveredTillPO))}</b> · gap from ${dstr(addD(T,it.firstGap))}`:`covered through <b>${dstr(addD(T,it.lastDay))}</b> ✓`;
+    const fgs=it.drivers.slice(0,4).map(dd=>`<span class="covfg">${dd.fg}</span>`).join('')+(it.drivers.length>4?`<span class="covfg more">+${it.drivers.length-4}</span>`:'');
+    return `<div class="covrow ${it.status}" data-idx="${idx}">
+      <div class="covmain" data-c="${x.code}">
+        <div class="crank">${it.rank}<small>rank</small></div>
+        <div class="cid"><div class="ccode">${x.code}${x.coman?' <span class="cmtag">🤝</span>':''}</div><div class="cdesc">${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</div>
+          <div class="coh">OH ${fmt(it.onHand)} · need ${fmt(it.totalDemand)} · PO ${fmt(it.totalPO)}${x.paFirst?' · <b style="color:#2f5da8">firm PA</b>':' · forecast'}</div>
+          <div class="cfgs">${fgs}</div></div>
+        <div class="crunway"><div class="ctrack">${seg}</div>${dots}
+          <div class="ctoday" style="left:${X(0)}%"></div><div class="clab" style="left:${X(0)}%">today</div>
+          <div class="clab" style="left:${Math.min(96,demEnd)}%">${dstr(addD(T,it.lastDay))}</div></div>
+        <div class="cverdict"><div class="ctill">${covered}</div><span class="cact ${actCls[it.status]}">${actTxt(it)}</span></div>
+      </div>
+      <div class="covdetail" data-det="${idx}"></div>
+    </div>`;
+  }).join('')||'<div class="emptyrow">Nothing in this view.</div>';
+  el.innerHTML=`<div class="planbar"><span class="now"><b>Coverage runway</b> — every can with demand, ranked by earliest stock-out. Each bar shows how far <span style="color:#2f7a3f">stock</span> covers, then <span style="color:#b06d00">open POs</span>, then the <span style="color:var(--red)">gap</span>. Dots are PO arrivals (red = lands after the gap). Same live data and rules as the board.</span>
+      <button class="btn ghost" id="covExp" style="margin-left:auto">⬇ Export coverage</button></div>
+    ${kpis}${chips}
+    <div class="covwrap">${rows}</div>`;
+  el.querySelectorAll('.covchip').forEach(b=>b.onclick=()=>{state.covFilter=b.dataset.f;renderCoverage();});
+  $('#covExp').onclick=exportCoverage;
+  el.querySelectorAll('.covmain').forEach(m=>m.onclick=e=>{
+    if(e.metaKey||e.ctrlKey){openModal(m.dataset.c);return;}
+    const row=m.closest('.covrow'),idx=+row.dataset.idx,det=row.querySelector('.covdetail');
+    if(row.classList.toggle('open')){det.innerHTML=covDetail(shown[idx],T);}
+  });
+  $('#hdMeta').textContent=`Coverage · ${items.length} cans · ${cnt('critical')} place PO, ${cnt('expedite')} expedite`;
+}
+function covDetail(it,T){
+  const x=it.x;
+  const drv=it.drivers.map(dd=>`<tr><td>${dd.fg}</td><td>${(dd.paCust||'').trim()||(dd.paDate?'firm order':'forecast')}</td><td>${dd.paDate?dstr(dd.paDate):'—'}</td><td class="num">${fmt(Math.round((dd.rate||0)*30))}/mo</td></tr>`).join('');
+  const pos=it.poList.length?it.poList.map(p=>`<tr><td>${p.po}</td><td class="num">${fmt(p.qty)}</td><td>${dstr(p.date)}</td><td>${it.firstGap!=null&&p.day!=null&&p.day>it.firstGap?'<span class="latepill">arrives after gap — expedite</span>':''}</td></tr>`).join(''):'<tr><td colspan="4" style="color:var(--faint)">None on file for this can.</td></tr>';
+  return `<h4>Finished goods driving this can</h4>
+    <table class="covtb"><thead><tr><th>FG</th><th>Customer (firm PA)</th><th>Ship date</th><th class="num">Rate</th></tr></thead><tbody>${drv}</tbody></table>
+    <h4>Open POs</h4>
+    <table class="covtb"><thead><tr><th>PO #</th><th class="num">Open qty</th><th>Due</th><th></th></tr></thead><tbody>${pos}</tbody></table>`;
+}
+function exportCoverage(){
+  const {T,items}=coverageData();
+  if(!items.length){toast('No coverage data');return;}
+  const statusName={critical:'PLACE PO NOW',expedite:'EXPEDITE OPEN PO',po:'Covered by PO',full:'Stock covers'};
+  const rows=items.map(it=>({
+    'Rank':it.rank,'Priority':it.status==='critical'?'1 — place PO':(it.status==='expedite'?'2 — expedite':(it.status==='po'?'3 — PO covered':'4 — stock covered')),
+    'Status':statusName[it.status],'Can #':it.x.code,'Description':it.x.desc,
+    'On hand':it.onHand,'Days of supply':it.x.daily>0?+(it.onHand/it.x.daily).toFixed(1):null,
+    'Total demand (180d)':it.totalDemand,'Open PO qty':it.totalPO,'Gap (cans)':it.gapQty,
+    'Covered till':it.firstGap!=null?dstr(addD(T,it.coveredTillPO)):dstr(addD(T,it.lastDay)),
+    'Stock-out (gap) date':it.firstGap!=null?dstr(addD(T,it.firstGap)):'',
+    'Demand basis':it.x.paFirst?'Firm PA':'Forecast','PA customer':it.x.paFirst?(it.x.paFirst.cust||'').trim():'','PA ship date':it.x.paFirst?dstr(it.x.paFirst.date):'',
+    'Goes into (FG)':it.x.fgFull||'',
+    'Action':it.status==='critical'?('PLACE PO ≥ '+(Math.ceil(it.gapQty/1000)*1000)+' by '+dstr(addD(T,it.firstGap))):(it.status==='expedite'?('EXPEDITE PO before '+dstr(addD(T,it.firstGap))):statusName[it.status])
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:5},{wch:16},{wch:16},{wch:8},{wch:36},{wch:11},{wch:12},{wch:15},{wch:11},{wch:11},{wch:12},{wch:15},{wch:12},{wch:20},{wch:12},{wch:50},{wch:44}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Coverage Runway');
+  XLSX.writeFile(wb,'Can_Coverage_Runway_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Coverage exported');
+}
+
 function render(){
   chips();
   const T=today();
   // ---- page routing: board / consumption planner / order schedule ----
   const page=state.page||'board';
-  const onPlan=page==='plan',onOrders=page==='orders',onBoard=page==='board';
+  const onPlan=page==='plan',onOrders=page==='orders',onCover=page==='coverage',onBoard=page==='board';
   $('#tabBoard').classList.toggle('on',onBoard);
   $('#tabPlan').classList.toggle('on',onPlan);
   $('#tabOrders').classList.toggle('on',onOrders);
+  $('#tabCover').classList.toggle('on',onCover);
   $('#planner').style.display=onPlan?'block':'none';
   $('#orders').style.display=onOrders?'block':'none';
+  $('#coverage').style.display=onCover?'block':'none';
   $('#pgrid').style.display=onBoard?'flex':'none';
   document.querySelectorAll('.floorbar,.comanbar').forEach(el=>el.style.display=onBoard?'flex':'none');
   if(onPlan){
@@ -1467,6 +1647,12 @@ function render(){
   }
   if(onOrders){
     renderOrders();
+    $('#empty').style.display=state.rows.length?'none':'block';
+    if(!state.rows.length)$('#hdMeta').textContent='no data loaded';
+    return;
+  }
+  if(onCover){
+    renderCoverage();
     $('#empty').style.display=state.rows.length?'none':'block';
     if(!state.rows.length)$('#hdMeta').textContent='no data loaded';
     return;
@@ -1596,10 +1782,17 @@ function render(){
     ${queue.length?`<button class="btn ghost secexp" data-x="queue">⬇ Export queue</button>`:''}`;
 
   // ---- 5. swappable pool ----
-  const poolBody=`<div class="secnote">POs sitting on cans that are covered — the donor pool the swaps are matched from.</div>
-    ${swapsPool.map(s=>`<div class="prow" data-c="${s.code}"><span class="tagc tg-ok">SWAP</span>
+  const lockStr=($('#setDscLock')||{}).value||'';const lockDate=lockStr?new Date(lockStr+'T00:00:00'):null;
+  const poolOpen=swapsPool.filter(s=>!s.locked),poolLocked=swapsPool.filter(s=>s.locked);
+  const lockNote=lockDate?` <b style="color:var(--dsc,#b06d00)">🔒 ${poolLocked.length} PO${poolLocked.length===1?'':'s'} due on/before ${dstr(lockDate)} are DSC-committed — frozen, not offered for swaps.</b>`:'';
+  const poolBody=`<div class="secnote">POs sitting on cans that are covered — the donor pool the swaps are matched from.${lockNote}</div>
+    ${poolOpen.map(s=>`<div class="prow" data-c="${s.code}"><span class="tagc tg-ok">SWAP</span>
       <div class="nm"><small>${s.code}</small>PO ${s.p.po} · ${s.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}<span class="fg">${s.reason}</span></div>
-      <div class="val" style="color:var(--green)">${fmt(s.p.qty)}<small>due ${dstr(s.p.date)}</small></div></div>`).join('')||'<div class="emptyrow">No covered POs available.</div>'}
+      <div class="val" style="color:var(--green)">${fmt(s.p.qty)}<small>due ${dstr(s.p.date)}</small></div></div>`).join('')||'<div class="emptyrow">No covered POs available to swap.</div>'}
+    ${poolLocked.length?`<div class="secnote" style="margin-top:10px;background:#fdf7ec;border-color:#eecfa0">🔒 <b>DSC-locked (committed through ${dstr(lockDate)}) — cannot be swapped or adjusted:</b></div>
+    ${poolLocked.map(s=>`<div class="prow locked" data-c="${s.code}" style="opacity:.75"><span class="tagc" style="background:#eee;color:#777">🔒 LOCKED</span>
+      <div class="nm"><small>${s.code}</small>PO ${s.p.po} · ${s.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}<span class="fg">DSC-committed — due ${dstr(s.p.date)} is within the locked window</span></div>
+      <div class="val" style="color:#999">${fmt(s.p.qty)}<small>due ${dstr(s.p.date)}</small></div></div>`).join('')}`:''}
     ${swapsPool.length?`<button class="btn ghost secexp" data-x="swap">⬇ Export pool</button>`:''}`;
 
   // ---- 5b. co-manufacturing band ----
@@ -2100,7 +2293,9 @@ function rowToExport(x){
     'Need-by (incl buffer)':x.needBy!=null?dstr(addD(T,x.needBy)):'','Last day to order':x.orderBy!=null?(x.orderBy<=0?'PAST DUE':dstr(addD(T,x.orderBy))):'',
     'Run-out (with POs)':x.runout!=null?dstr(addD(T,x.runout)):'','Lead time (d)':x.lt,'Safety stock':Math.round(x.ss),
     'Open PO qty':Math.round(x.incoming),'First PO arrival':x.firstArr!=null?dstr(addD(T,x.firstArr)):'','Overdue PO qty':Math.round(x.overduePO),
-    'On a firm PA?':x.paFirst?'Yes':'No','PA customer':x.paFirst?(x.paFirst.cust||'firm order').trim():'','PA ship date':x.paFirst?dstr(x.paFirst.date):'',
+    'On a firm PA?':x.paFirst?'Yes':'No',
+    'Demand source':x.paFirst?('P'+((x.paFirst.date?x.paFirst.date.getMonth():T.getMonth())+1)+' PA firm order'):'Forecast',
+    'PA customer':x.paFirst?(x.paFirst.cust||'firm order').trim():'','PA ship date':x.paFirst?dstr(x.paFirst.date):'','PA finished good':x.paFirst?x.paFirst.fg:'',
     'Why order (demand basis)':basis,'PA short by (cans)':gap?gap.gap:null,'PA short by date':gap?dstr(addD(T,gap.riskDay)):'',
     'Suggested order':x.suggest||null,'Trucks':x.trucks||null,
     'Goes into (finished goods)':x.fgFull||'',
@@ -2281,6 +2476,7 @@ $('#custBtn').onclick=e=>{e.stopPropagation();state.custOpen=!state.custOpen;cus
 document.addEventListener('click',e=>{if(state.custOpen&&!e.target.closest('.custwrap')){state.custOpen=false;custUI();}});
 $('#q').oninput=e=>{state.q=e.target.value;render();};
 ['setLT','setBuf','setTruck','setCov','setFLT','setMOQ','setMinSwap','setStale','setRemnant'].forEach(id=>$('#'+id).oninput=()=>compute());
+$('#setDscLock').onchange=()=>compute();
 $('#setComanMin').oninput=()=>{state.comanMin=Math.max(0,+$('#setComanMin').value||0);compute();};
 $('#setMinDOS').oninput=()=>{state.gMinDOS=Math.max(0,+$('#setMinDOS').value||0);compute();};
 $('#setIdealDOS').oninput=()=>{state.gIdealDOS=Math.max(1,+$('#setIdealDOS').value||1);compute();};
@@ -2303,6 +2499,7 @@ $('#btnHelp').onclick=()=>{$('#helpdrawer').classList.add('show');$('#helpovl').
 $('#tabBoard').onclick=()=>{state.page='board';render();};
 $('#tabPlan').onclick=()=>{state.page='plan';render();};
 $('#tabOrders').onclick=()=>{state.page='orders';render();};
+$('#tabCover').onclick=()=>{state.page='coverage';render();};
 $('#helpx').onclick=$('#helpovl').onclick=()=>{$('#helpdrawer').classList.remove('show');$('#helpovl').classList.remove('show');};
 $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();});
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
@@ -2320,7 +2517,7 @@ function exportLiveHTML(){
     floor:[...state.floor],coman:[...state.coman],cust:[...state.cust],
     comanMin:state.comanMin,comanMax:state.comanMax,gMinDOS:state.gMinDOS,gIdealDOS:state.gIdealDOS,gMaxDOS:state.gMaxDOS,
     bandOverride:state.bandOverride,custBand:state.custBand,
-    settings:Object.fromEntries(['setLT','setBuf','setTruck','setCov','setMinDOS','setIdealDOS','setMaxDOS','setFLT','setMOQ','setMinSwap','setStale','setRemnant','setComanMin','setComanMax'].map(id=>[id,(document.getElementById(id)||{}).value])),
+    settings:Object.fromEntries(['setLT','setBuf','setTruck','setCov','setMinDOS','setIdealDOS','setMaxDOS','setFLT','setMOQ','setMinSwap','setStale','setRemnant','setDscLock','setComanMin','setComanMax'].map(id=>[id,(document.getElementById(id)||{}).value])),
     floorList:($('#floorList')||{}).value};
   const json=JSON.stringify(S,replacer).replace(/<\//g,'<\\/');
   const root=document.documentElement.cloneNode(true);
