@@ -2090,6 +2090,8 @@ $('#ovl').addEventListener('click',e=>{if(e.target.id==='ovl')$('#ovl').classLis
 const CLSNAME={out:'STOCKED OUT',exp:'EXPEDITE PO',now:'ORDER TODAY',wk:'ORDER THIS WEEK',nx:'ORDER NEXT WEEK',up:'UPCOMING/WATCH',ok:'COVERED',na:'NO DEMAND'};
 function rowToExport(x){
   const T=today();const a=actionOf(x);
+  const gap=paCoverGap(x);
+  const basis=gap?'FIRM PA — NOT COVERED':(x.paFirst?'Firm PA — covered (forecast reorder)':'Forecast only (no firm PA)');
   return {
     'Status':CLSNAME[x.cls],'Can #':x.code,'Description':x.desc,'Supplier':x.supplier,'NetStock status':x.ns,
     'On hand (used)':Math.round(x.onHand),'Basis':x.counted?('Physical '+dstr(x.cnt.date)):'System',
@@ -2098,6 +2100,8 @@ function rowToExport(x){
     'Need-by (incl buffer)':x.needBy!=null?dstr(addD(T,x.needBy)):'','Last day to order':x.orderBy!=null?(x.orderBy<=0?'PAST DUE':dstr(addD(T,x.orderBy))):'',
     'Run-out (with POs)':x.runout!=null?dstr(addD(T,x.runout)):'','Lead time (d)':x.lt,'Safety stock':Math.round(x.ss),
     'Open PO qty':Math.round(x.incoming),'First PO arrival':x.firstArr!=null?dstr(addD(T,x.firstArr)):'','Overdue PO qty':Math.round(x.overduePO),
+    'On a firm PA?':x.paFirst?'Yes':'No','PA customer':x.paFirst?(x.paFirst.cust||'firm order').trim():'','PA ship date':x.paFirst?dstr(x.paFirst.date):'',
+    'Why order (demand basis)':basis,'PA short by (cans)':gap?gap.gap:null,'PA short by date':gap?dstr(addD(T,gap.riskDay)):'',
     'Suggested order':x.suggest||null,'Trucks':x.trucks||null,
     'Goes into (finished goods)':x.fgFull||'',
     'Floor stock (DSC)':x.floor?'Yes':'No','DSC floor current period':x.dscOH!=null?Math.round(x.dscOH):null,'DSC floor all lots':x.dscTot!=null?Math.round(x.dscTot):null,'Quick-turn applied':(x.floor||x.quickPull)?'Yes':'No',
@@ -2253,7 +2257,9 @@ function exportSwaps(){
 function exportRows(rows,name){
   if(!rows.length){toast('Nothing to export in this box');return;}
   const ws=XLSX.utils.json_to_sheet(rows.map(rowToExport));
-  ws['!cols']=[{wch:14},{wch:8},{wch:38},{wch:16},{wch:14},{wch:12},{wch:16},{wch:12},{wch:12},{wch:10},{wch:8},{wch:14},{wch:14},{wch:12},{wch:8},{wch:10},{wch:11},{wch:12},{wch:11},{wch:12},{wch:7},{wch:60},{wch:120}];
+  ws['!cols']=Object.keys(rows.length?rowToExport(rows[0]):{}).map(k=>({wch:Math.min(60,Math.max(9,k.length+2))}));
+  const gi=Object.keys(rows.length?rowToExport(rows[0]):{});
+  ['Description','Goes into (finished goods)','Why order (demand basis)','Why','Action'].forEach(n=>{const i=gi.indexOf(n);if(i>=0)ws['!cols'][i]={wch:n==='Why'?110:(n==='Goes into (finished goods)'?55:(n==='Description'?38:26))};});
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Cans');
   XLSX.writeFile(wb,`${name}_${new Date().toISOString().slice(0,10)}.xlsx`);
