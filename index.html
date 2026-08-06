@@ -557,7 +557,19 @@ const state={
 
 /* ---------- parsing ---------- */
 function sheetByName(wb,frag){const n=wb.SheetNames.find(s=>s.trim().toLowerCase()===frag.toLowerCase()||s.toLowerCase().includes(frag.toLowerCase()));return n?wb.Sheets[n]:null;}
-function rws(ws){return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});}
+const MAX_ROWS=40000,MAX_COLS=80; // hard caps — real exports never exceed these; ghost ranges (stray cells at row 1M) do
+function rws(ws){
+  try{
+    if(ws&&ws['!ref']){
+      const r=XLSX.utils.decode_range(ws['!ref']);
+      let clamped=false;
+      if(r.e.r-r.s.r>MAX_ROWS){r.e.r=r.s.r+MAX_ROWS;clamped=true;}
+      if(r.e.c-r.s.c>MAX_COLS){r.e.c=r.s.c+MAX_COLS;clamped=true;}
+      if(clamped)ws['!ref']=XLSX.utils.encode_range(r);
+    }
+  }catch(e){}
+  return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+}
 function detect(wb){
   const names=wb.SheetNames.map(s=>s.trim().toLowerCase());
   if(names.includes('po_purchaseorderdetail'))return 'po';
@@ -1800,7 +1812,7 @@ function importBands(file){
   const rd=new FileReader();
   rd.onload=e=>{
     try{
-      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true,sheetRows:MAX_ROWS+2});
       const ov={},cb={};let nCan=0,nCust=0;
       for(const sn of wb.SheetNames){
         const r=rws(wb.Sheets[sn]);
@@ -1832,17 +1844,19 @@ function importBands(file){
 function importComanBands(file){importBands(file);}
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function procStep(step,sub,pct){$('#pstep').textContent=step;$('#psub').textContent=sub||'';$('#pbar').style.width=pct+'%';await sleep(380);}
+async function procStep(step,sub,pct){$('#pstep').textContent=step;$('#psub').textContent=sub||'';$('#pbar').style.width=pct+'%';await sleep(70);}
 async function handleFiles(list){
   if(!list.length)return;
   $('#proc').classList.add('show');$('#pbar').style.width='5%';
-  const names=[];
+  const names=[];const failed=[];
   try{
     for(let i=0;i<list.length;i++){
       const f=list[i];
       await procStep('Reading '+f.name,'parsing workbook…',10+(i/list.length)*40);
-      const wb=XLSX.read(await f.arrayBuffer(),{cellDates:true});
-      const t=detect(wb);
+      try{
+        if(f.size>60*1024*1024)throw new Error('file larger than 60MB — export a smaller range');
+        let wb=XLSX.read(await f.arrayBuffer(),{cellDates:true,sheetRows:MAX_ROWS+2});
+        const t=detect(wb);
       if(t==='stock'){state.stock=parseStock(wb);state.files.stock=f.name;names.push('Stock on Hand');}
       else if(t==='pa'){state.pa=parsePA(wb);state.files.pa=f.name;names.push('Live PA');}
       else if(t==='po'){state.po=parsePO(wb);state.files.po=f.name;names.push('Purchase Orders');}
@@ -1869,14 +1883,15 @@ async function handleFiles(list){
         else{const p=parseDSC(wb);if(p){state.dsc=p;state.dscTot=null;state.files.dsc=f.name;names.push('DSC Floor Stock');}else alert(`Couldn't find item-code + quantity columns in "${f.name}".`);}
       }
       else alert(`Couldn't recognize "${f.name}". Expected: Stock on Hand, Live PA, Purchase Orders, Can Inv, DSC Floor Stock, Forecast, or BOM.`);
+        wb=null; // release workbook memory before the next file
+      }catch(fe){failed.push(f.name+' ('+(fe&&fe.message||'unreadable')+')');}
     }
-    await procStep('Exploding BOM demand','forecast × bill of materials → cans/day',60);
-    await procStep('Checking Live PA coverage','finished goods vs firm sales orders',75);
-    await procStep('Projecting run-outs, swaps & POs','need-by · order-by · truck packing',90);
+    await procStep('Crunching the board','BOM demand · PA coverage · run-outs · swaps · truck packing',70);
     compute();
     await procStep('Done','board updated',100);
   }catch(e){alert('Problem: '+e.message);}
   $('#proc').classList.remove('show');
+  if(failed.length)alert('Skipped (could not read): '+failed.join(', ')+'. Everything else loaded.');
   if(names.length)toast(names.join(' + ')+' loaded — board recalculated');
 }
 function openModal(code){
