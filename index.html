@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alamance Foods — Can Supply Control</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg:#f3f8fc; --bg2:#eaf3fa; --panel:#ffffff; --panel2:#f2f8fd; --line:#dbe8f2; --line2:#c2d9ea;
@@ -19,6 +21,26 @@
 html,body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px}
 body{padding-bottom:80px;background:linear-gradient(180deg,#e8f3fb 0%,var(--bg) 260px)}
 .wrap{max-width:1560px;margin:0 auto;padding:0 20px}
+.app{display:flex;align-items:stretch;min-height:100vh}
+.app-main{flex:1;min-width:0}
+.sidebar{width:236px;flex:none;background:#fff;border-right:1px solid var(--line);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:8px;padding:16px 12px;z-index:60;box-shadow:2px 0 12px rgba(23,52,78,.06)}
+.sb-brand{display:flex;align-items:center;gap:10px;padding:2px 4px 10px;border-bottom:1px solid var(--line)}
+.sb-brand .logo{padding:4px 8px}.sb-brand .logo img{max-height:34px;display:block}
+.sb-title b{display:block;font-size:14px;color:var(--ink);letter-spacing:.02em;line-height:1.1}
+.sb-title span{font-size:8.5px;letter-spacing:.18em;color:var(--blue);font-weight:700;text-transform:uppercase}
+.sb-nav{display:flex;flex-direction:column;gap:5px;margin-top:4px}
+.sb-lbl{font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:8px 4px 2px}
+.sb-nav .ptab{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:1px solid transparent;background:transparent;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--dim)}
+.sb-nav .ptab:hover{background:#f2f6fb}
+.sb-nav .ptab.on{background:var(--blue);color:#fff;box-shadow:0 4px 12px rgba(43,108,176,.28)}
+.sb-actions{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.sb-actions .btn{width:100%;justify-content:flex-start}
+.sb-meta{font-family:var(--mono);font-size:10.5px;color:var(--dim);background:#f7f9fc;border:1px solid var(--line);border-radius:10px;padding:8px 10px;line-height:1.45}
+.sb-meta b{display:block;color:var(--ink);font-size:12px}
+.sb-spacer{flex:1}
+.sb-bottom{border-top:1px solid var(--line);padding-top:10px}
+.sb-bottom .btn{width:100%;justify-content:center}
+@media(max-width:820px){.app{flex-direction:column}.sidebar{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center;border-right:0;border-bottom:1px solid var(--line)}.sb-nav{flex-direction:row}.sb-spacer{display:none}.sb-bottom{border-top:0}.sb-meta{display:none}}
 
 /* header */
 header{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:3px solid var(--sky);position:sticky;top:0;z-index:60;box-shadow:0 2px 12px rgba(23,52,78,.08)}
@@ -106,6 +128,65 @@ header{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:
 .scl.total{background:var(--panel2);font-weight:800}
 .confchip{font-size:9.5px;font-weight:800;background:var(--green);color:#fff;border-radius:5px;padding:2px 7px;letter-spacing:.05em}
 .propchip{font-size:9.5px;font-weight:800;background:#fdf7e0;color:var(--amber);border:1px solid #ecdb9a;border-radius:5px;padding:2px 7px;letter-spacing:.05em}
+.decchip{font-size:9.5px;font-weight:800;background:var(--red);color:#fff;border-radius:5px;padding:2px 7px;letter-spacing:.05em}
+.altchip{font-size:9.5px;font-weight:800;background:#e8f0fd;color:var(--blue);border:1px solid #b9d0f5;border-radius:5px;padding:2px 7px;letter-spacing:.05em}
+.scard.declinedcard{border-left:4px solid var(--red);background:#fdf5f5}
+.decnote{font-size:11px;color:var(--red);margin:4px 0 2px;font-weight:600}
+.fromdec{font-size:9.5px;font-style:italic;color:var(--red);font-weight:700}
+.balafoot{position:fixed;right:14px;bottom:12px;z-index:60;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line,#e3e3e3);border-radius:999px;padding:4px 12px 4px 4px;box-shadow:0 2px 10px rgba(0,0,0,.12);font-size:10.5px;color:var(--faint,#888)}
+.balafoot img{width:26px;height:26px;border-radius:50%;object-fit:cover;display:block}
+.pagetabs{display:flex;gap:6px;margin-left:10px}
+.comanbar{border:1px solid #d9e6f5;background:#f5f9ff}
+.cmchips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.cmchip{display:inline-flex;align-items:center;gap:5px;background:#e5eefc;border:1px solid #bcd3f2;color:#2f5da8;border-radius:999px;padding:3px 6px 3px 10px;font-size:11px;font-weight:700}
+.cmchip button{border:0;background:none;color:#7f9dc9;cursor:pointer;font-size:13px;line-height:1;padding:0}
+.cmchip button:hover{color:var(--red)}
+.cmadd{border:1px solid #cdd9ea;border-radius:8px;padding:6px 8px;font-size:11.5px;background:#fff;color:var(--ink);max-width:180px}
+.cmbadge{font-size:9px;font-weight:800;border-radius:5px;padding:1px 5px;letter-spacing:.03em;margin-left:5px;vertical-align:middle}
+.cm-below{background:var(--red);color:#fff}
+.cm-over{background:#fdf0dd;color:#c07d16;border:1px solid #eecfa0}
+.cm-in{background:#e5f6ec;color:var(--green);border:1px solid #bfe6cd}
+.cmtag{font-size:9px;font-weight:800;background:#e5eefc;color:#2f5da8;border:1px solid #bcd3f2;border-radius:5px;padding:1px 5px;margin-left:4px}.ptab{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;color:var(--faint,#777)}
+.ptab.on{background:var(--ink,#222);color:#fff;border-color:var(--ink,#222)}
+.planbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0 10px}
+.planbar .now{font-size:12.5px;color:var(--ink)}
+.planbar .now b{color:var(--blue)}
+.modetog{display:flex;border:1px solid var(--line,#ddd);border-radius:8px;overflow:hidden}
+.modetog button{border:0;background:#fff;padding:7px 15px;font-size:12px;font-weight:800;cursor:pointer;color:var(--faint,#777)}
+.modetog button.on{background:var(--blue);color:#fff}
+.planwrap{overflow:auto;border:1px solid var(--line,#e3e3e3);border-radius:12px;background:#fff;max-height:72vh}
+table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-width:100%}
+.plantb th,.plantb td{padding:6px 9px;border-bottom:1px solid #eee;border-right:1px solid #f3f3f3;white-space:nowrap;text-align:right}
+.plantb thead th{position:sticky;top:0;background:#fafafa;z-index:5;font-size:10.5px;text-align:right}
+.plantb thead th .bsub{display:block;font-weight:400;color:var(--faint);font-size:9.5px}
+.plantb th.stick,.plantb td.stick{position:sticky;background:#fff;z-index:3;text-align:left}
+.plantb thead th.stick{z-index:6;background:#fafafa}
+.plantb .c1{left:0;min-width:52px}.plantb .c2{left:52px;min-width:200px;max-width:240px;overflow:hidden;text-overflow:ellipsis}.plantb .c3{left:252px;min-width:90px;max-width:120px;overflow:hidden;text-overflow:ellipsis;color:var(--faint)}.plantb .c4{left:342px;min-width:86px;text-align:right;border-right:2px solid #ddd}
+.plantb td.cur,.plantb th.cur{background:#eef5ff!important;border-left:2px solid var(--blue);border-right:2px solid var(--blue)}
+.plantb thead th.cur{border-top:2px solid var(--blue)}
+.plantb .need{font-weight:800}
+.plantb .need.z{color:#c9c9c9;font-weight:400}
+.plantb .sub{display:block;font-size:9.5px;color:var(--faint)}
+.plantb .sub.neg{color:var(--red);font-weight:700}
+.plantb .sub.po{color:var(--green);font-weight:700}
+.plantb tr.tot td{background:#fbfbf4;font-weight:800;border-top:2px solid #ddd;position:sticky;bottom:0;z-index:4}
+.plantb tbody tr:hover td{background:#fcfcff}
+.plantb tbody tr:hover td.cur{background:#e6f0ff!important}
+/* order schedule page */
+.ordtb{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
+.ordtb th,.ordtb td{padding:7px 11px;border-bottom:1px solid #eee;white-space:nowrap;text-align:left}
+.ordtb thead th{position:sticky;top:0;background:#fafafa;z-index:5;font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--faint)}
+.ordtb td.num{text-align:right;font-variant-numeric:tabular-nums}
+.ordtb tr.grp td{background:#f4f8fd;font-weight:800;border-top:2px solid #dbe6f3;color:var(--ink)}
+.ordtb tr.grp small{color:var(--faint);font-weight:600;margin-left:6px}
+.ordtb .ord1 td{border-top:1px solid #eee}
+.ordtb .placeby{font-weight:800}
+.ordtb .placeby.soon{color:var(--red)}
+.ordtb .placeby.wk{color:var(--amber)}
+.ordtb .cvr{color:var(--green);font-weight:700}
+.ordtb .existing td{background:#fbfbf4;color:var(--dim)}
+.ordtb .pchip{display:inline-block;font-size:9px;font-weight:800;background:#eef2f7;color:var(--dim);border-radius:5px;padding:1px 6px;margin-left:2px}
+.ordwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff;max-height:74vh}
 .scl .pull{font-style:normal;font-size:9.5px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:5px}
 .sec2{margin-left:auto;text-align:right;font-family:var(--mono);font-size:12px;color:var(--dim)}
 .sec2 b{display:block;font-size:15px;color:var(--ink)}
@@ -260,21 +341,55 @@ header{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:
 .swapbox .none{color:var(--faint)}
 .swaparrow{font-size:16px;color:var(--green);flex:none}
 @media(max-width:760px){.mgrid{grid-template-columns:1fr}.pgrid{grid-template-columns:1fr}.swapbox{display:none}}
+.pdfdoc{width:820px;background:#fff;color:var(--ink);padding:10px}
+.pdfstage{position:fixed;inset:0;background:#fff;z-index:9999;overflow:auto;padding:0}
+.pdfstage .pdfnote{position:sticky;top:0;background:var(--blue);color:#fff;font-size:12px;font-weight:700;padding:8px 14px;z-index:2}
+.pdfdoc .act,.pdfdoc .why,.pdfdoc .mt,.pdfdoc .pdfhead,.pdfdoc .mgrid>div{page-break-inside:avoid;break-inside:avoid}
+.pdfdoc tr{page-break-inside:avoid;break-inside:avoid}
+.pdfhead{display:flex;align-items:center;gap:14px;padding:0 6px 14px;margin-bottom:6px;border-bottom:3px solid var(--sky)}
+.pdfhead img{max-height:40px;border:1px solid var(--line);border-radius:8px;padding:3px 7px;background:#fff}
+.pdfhead .pt b{display:block;font-size:16px;color:var(--ink)}
+.pdfhead .pt span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);font-weight:700}
+.pdfhead .pd{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.pdfdoc .modal,.pdfdoc .mhead,.pdfdoc .mbody{box-shadow:none;border:0;padding-left:6px;padding-right:6px}
+.pdfdoc .mgrid{page-break-inside:avoid}
+@media print{
+ body.printing *{visibility:hidden}
+ body.printing #ovl,body.printing #ovl *{visibility:visible}
+ body.printing #ovl{position:absolute;inset:0;background:#fff;display:block;padding:0}
+ body.printing #ovl .x,body.printing #ovl .mfoot{display:none!important}
+ body.printing .modal{box-shadow:none;max-width:100%;border:0}
+ *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 
 </style>
 </head>
 <body>
-<header><div class="wrap hrow">
-  <div class="logo"><img id="brandLogo" alt="Alamance Foods"></div>
-  <div class="htitle"><b>Can Supply Control</b><span>Raw Material · DS Containers</span></div>
-  <div class="hbtns">
-    <button class="btn ghost" id="btnHelp">❓ Help &amp; rules</button>
-    <button class="btn" id="btnExport">⬇ Export view</button>
-    <button class="btn ghost" id="btnExportAct">Action list</button>
+<div class="app">
+<aside class="sidebar">
+  <div class="sb-brand">
+    <div class="logo"><img id="brandLogo" alt="Alamance Foods"></div>
+    <div class="sb-title"><b>Can Supply Control</b><span>Raw Material · DSC</span></div>
   </div>
-  <div class="hdate"><b id="hdToday"></b><span id="hdMeta">no data loaded</span></div>
-</div></header>
-
+  <div class="sb-lbl">Views</div>
+  <nav class="sb-nav">
+    <button class="ptab on" id="tabBoard">📊 Board</button>
+    <button class="ptab" id="tabPlan">🗓 Consumption Planner</button>
+    <button class="ptab" id="tabOrders">📦 Order Schedule</button>
+  </nav>
+  <div class="sb-lbl">Export</div>
+  <div class="sb-actions">
+    <button class="btn" id="btnExport">⬇ Export view</button>
+    <button class="btn ghost" id="btnExportAct">📋 Action list</button>
+    <button class="btn ghost" id="btnLiveHTML" title="Download this whole dashboard as one HTML file with all current data inside — fully interactive for whoever you share it with">🌐 Live HTML snapshot</button>
+  </div>
+  <div class="sb-spacer"></div>
+  <div class="sb-meta"><b id="hdToday"></b><span id="hdMeta">no data loaded</span></div>
+  <div class="sb-bottom">
+    <button class="btn ghost" id="btnHelp">❓ Help &amp; rules</button>
+  </div>
+</aside>
+<main class="app-main">
 <div class="wrap">
   <div class="dz" id="dz">
     <div style="font-size:26px;color:var(--blue)">⬇</div>
@@ -287,13 +402,16 @@ header{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:
   <div class="upnote">Click a tile or drop the file straight onto it — the board recalculates automatically after every upload. Forecast &amp; BOM are built in; replace them only when they change. Everything runs locally.</div>
 
   <div class="bar">
-    <div class="search"><input id="q" placeholder="search a can # or name — filters every box…"></div>
+    <div class="search"><input id="q" placeholder="search a can #, name, or finished-good code — filters every box…"></div>
     <div class="custwrap"><button class="btn ghost" id="custBtn">👥 Customers: <b>All</b> ▾</button>
       <div class="custpanel" id="custPanel"></div></div>
     <div class="set">Lead <input id="setLT" type="number" value="28">d</div>
     <div class="set">Prod. buffer <input id="setBuf" type="number" value="7">d</div>
     <div class="set">Truck <input id="setTruck" type="number" value="95000"></div>
     <div class="set">Cover <input id="setCov" type="number" value="45">d</div>
+    <div class="set" title="Global LOWER bound — days of supply to keep on hand for every can unless overridden">Min days <input id="setMinDOS" type="number" value="14">d</div>
+    <div class="set" title="Global TARGET — order up to this many days of supply unless overridden">Ideal days <input id="setIdealDOS" type="number" value="45">d</div>
+    <div class="set" title="Global UPPER bound — never build more than this many days of supply unless overridden">Max days <input id="setMaxDOS" type="number" value="60">d</div>
     <div class="set">MOQ / multiple <input id="setMOQ" type="number" value="5000"></div>
     <div class="set">Min swap qty <input id="setMinSwap" type="number" value="20000"></div>
     <div class="set">Ignore POs overdue &gt; <input id="setStale" type="number" value="3">d</div>
@@ -306,10 +424,29 @@ header{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:
     <input id="floorList" class="floorinput" title="Comma-separated can codes DSC keeps as floor stock" value="12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020">
     <button class="btn ghost" id="btnFloorApply" style="padding:7px 13px">Apply</button>
     <div class="set" id="floorCount"></div>
+    <div class="set" style="margin-left:auto;font-weight:700;color:#2f5da8">📋 Customer days-of-supply policy</div>
+    <button class="btn" id="btnBandExp" style="padding:7px 13px">⬇ Export policy</button>
+    <button class="btn ghost" id="btnBandImp" style="padding:7px 13px">⬆ Import policy</button>
+    <input type="file" id="bandImpFile" accept=".xlsx,.xls,.xlsm" style="display:none">
+  </div>
+  <div class="bar comanbar">
+    <div class="set" style="font-weight:800;color:var(--ink)">🤝 Co-manufacturing <span style="font-weight:500;color:var(--faint)">— tight low-inventory band (order a week ahead, hold min→max days only)</span></div>
+    <div class="cmchips" id="comanChips"></div>
+    <select id="comanAdd" class="cmadd"><option value="">+ add customer…</option></select>
+    <div class="set">Min on-hand <input id="setComanMin" type="number" value="7" min="0">d</div>
+    <div class="set">Max on-hand <input id="setComanMax" type="number" value="14" min="1">d</div>
+    <button class="btn" id="btnComanExp" style="padding:7px 13px">⬇ Co-man plan</button>
+    <button class="btn ghost" id="btnComanImp" style="padding:7px 13px">⬆ Import bands</button>
+    <input type="file" id="comanImpFile" accept=".xlsx,.xls,.xlsm" style="display:none">
+    <div class="set" id="comanCount" style="color:var(--faint)"></div>
   </div>
 
   <div class="pgrid" id="pgrid"></div>
+  <div id="planner" style="display:none"></div>
+  <div id="orders" style="display:none"></div>
   <div class="empty" id="empty"><b>Waiting for data</b>Upload Stock on Hand and Live PA to light up the board.</div>
+</div>
+</main>
 </div>
 
 <div class="helpovl" id="helpovl"></div>
@@ -363,11 +500,19 @@ header{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:
       <li>Expedite items are excluded (their fix is the existing PO); swap-covered quantity is deducted first.</li>
     </ul>
     <h3>Swap decisions — the DSC round-trip</h3>
-    <div class="rule">Swaps here are <b>proposals</b> until DSC agrees. Export the <b>Swap decision template</b> from the swaps section, have DSC mark each row <b>YES</b> or <b>NO</b> in the Decision column, and drop the file back onto the board (✅ Swap Decisions tile). YES rows lock in and show <b>✔ CONFIRMED BY DSC</b>. NO rows are removed — that donor PO is never proposed again — and the urgent can's need automatically flows into the new-PO plan. Blank rows stay proposed. Re-upload an updated file any time; removing it (✕ on the tile) returns everything to proposed.</div>
+    <div class="rule">Swaps here are <b>proposals</b> until DSC agrees. Export the <b>Swap decision template</b> from the swaps section, have DSC mark each row <b>YES</b> or <b>NO</b> in the Decision column, and drop the file back onto the board (✅ Swap Decisions tile). YES rows lock in and show <b>✔ CONFIRMED BY DSC</b>. NO rows stay visible with a red <b>✖ NO — DECLINED BY DSC</b> indicator: the board then <b>recommends the next-best donor PO</b> as an <b>↻ ALTERNATIVE PO</b> (clearly marked, with the declined PO named on the card), or — if no other covered PO qualifies — the urgent can's need automatically flows into the new-PO plan, where the line is tagged <b>⇄ swap declined by DSC → new PO</b> so you can trace exactly where it went. A declined donor PO is never proposed again, even across repeated decision uploads (decisions merge, they don't overwrite). Blank rows stay proposed. Removing the file (✕ on the tile) returns everything to proposed.</div>
     <h3>Customer filter</h3>
     <p>Pick one or more customers (from Live PA order lines) in the 👥 dropdown. The whole page then shows only cans tied to those customers' firm orders, and the queue, swaps and PO plan are ranked by their orders. Forecast burn rates stay whole underneath so run-out dates remain realistic. Clear returns to all customers.</p>
+    <h3>On-hand policy — days of supply (all customers)</h3>
+    <p>At the top set the global <b>Min days</b> (floor), <b>Ideal days</b> (the target we order up to), and <b>Max days</b> (ceiling) of supply. Every can is planned to these unless a customer or can overrides them: order sizing aims for the <b>Ideal</b> days and never exceeds <b>Max</b>; anything below <b>Min</b> is flagged.</p>
+    <p><b>⬇ Export policy</b> (in the floor-stock row) downloads a simple file with <b>one row per customer</b> and four columns: <b>Customer</b>, <b>Ideal days of supply</b>, <b>Minimum days of supply</b>, <b>Maximum days of supply</b>. Edit the numbers, save, and <b>⬆ Import policy</b> — every can that serves a customer is re-planned to that customer's days-of-supply policy. Leave a customer blank to use the generic top-of-dashboard defaults. Co-manufacturing customers default to the tighter co-man band. Standard lead time (28d), buffer (7d) and cover still apply.</p>
+    <h3>Co-manufacturing customers — low-inventory band</h3>
+    <p>Some customers (default <b>Conagra, Rubix, Danone, Nestle</b>) are co-manufacturing accounts where we deliberately hold very little stock. In the <b>🤝 bar</b> up top you can add or remove customers (matched by name, case-insensitive) and set the <b>Min</b> and <b>Max on-hand days</b> (default 7 and 14). Any can that feeds one of these customers' finished goods is flagged <b>🤝 CO-MAN</b> and held to that tight band: its order sizing uses the MAX-day window as its cover instead of the standard cover, so it's never overstocked, and it's still ordered a week ahead. The <b>🤝 Co-manufacturing</b> section shows every co-man can with its on-hand, current days-of-supply and band, colour-coded <span style="color:var(--red)">BELOW MIN</span> / <span style="color:var(--green)">IN BAND</span> / <span style="color:var(--orange)">OVER MAX</span>. Standard 28-day lead time is unchanged; floor-stock cans follow their own quick-turn rule.</p>
+    <p><b>⬇ Co-man on-hand plan</b> exports one row per customer × can with on-hand, daily use, days of supply, and the MIN/MAX day band (and the equivalent MIN/MAX on-hand in cans). Edit the MIN/MAX day columns for any can, save, and <b>⬆ Import adjusted bands</b> — those per-can bands override the global default and the board re-plans instantly.</p>
     <h3>Everything exports</h3>
     <p>Every box, the queue, the swap list, the PO plan and every single can exports to Excel with the action and full reasoning included.</p>
+    <h3>Consumption Planner page</h3>
+    <p>The <b>🗓 Consumption Planner</b> tab (top-left) breaks the same live production need down by <b>fiscal week or fiscal period</b> (2026 calendar: P1–P12, 4/5-week periods, embedded). It auto-detects today's period and week, highlights the current bucket, and shows per-can consumption, incoming POs and the projected end balance per bucket — red when a shortfall is projected. The current bucket counts remaining days only. Search and the customer filter apply here too, and the whole grid exports to Excel.</p>
     <p style="color:var(--faint)">Lead times, buffer, truck size, MOQ, min-swap and the floor-stock list are all editable at the top — the whole board recalculates instantly.</p>
   </div>
 </div>
@@ -394,12 +539,19 @@ const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d;};
 const addD=(d,n)=>new Date(d.getTime()+n*DAY);
 const dstr=d=>d?d.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
 const dlong=d=>d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'—';
+// search matches can #, description, AND finished-good codes/names
+function matchRow(x,q){
+  if(!q)return true;
+  return (x.code||'').toLowerCase().includes(q)
+    ||(x.desc||'').toLowerCase().includes(q)
+    ||(x.fgFull||x.fgTop||'').toLowerCase().includes(q);
+}
 
 const state={
   stock:null,pa:null,po:null,count:null,
   forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,
   files:{stock:null,pa:null,po:null,count:null,dsc:null,swapdec:null,forecast:'built-in',bom:'built-in'},
-  rows:[],q:'',expanded:{},sec:{orders:true,swaps:true},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set()},swaps:[],queue:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
+  rows:[],q:'',expanded:{},sec:{orders:true,swaps:true},page:'board',planMode:'wk',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},swaps:[],queue:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
 };
 
@@ -436,11 +588,12 @@ function parseSwapDec(wb){
     const iPO=h.findIndex(x=>x.includes('existing po')||x==='po'||x==='po #');
     const iCur=h.findIndex(x=>x.includes('currently'));
     const iSw=h.findIndex(x=>x.includes('switch to'));
-    const dec={pair:{},poNo:new Set()};
+    const dec={pair:{},poNo:new Set(),declinedFor:{}};
     const code5=v=>{const m=String(v||'').match(/\b(\d{5})\b/);return m?m[1]:'';};
     for(let i=1;i<r.length;i++){
-      const po=String(r[i][iPO]||'').trim();if(!po)continue;
+      const po=String(r[i][iPO]||'').trim();if(!po||/declined/i.test(po))continue;
       const donor=code5(iCur>=0?r[i][iCur]:'');
+      const donorDesc=String(iCur>=0?(r[i][iCur]||''):'').trim();
       const target=code5(iSw>=0?r[i][iSw]:'');
       const d=String(r[i][iDec]||'').trim().toLowerCase();
       let v=null;
@@ -449,7 +602,10 @@ function parseSwapDec(wb){
       if(!v)continue;
       dec.pair[po+'|'+donor+'|'+target]=v;
       dec.pair[po+'|'+donor]=v;
-      if(v==='no')dec.poNo.add(po);
+      if(v==='no'){
+        dec.poNo.add(po);
+        if(target){(dec.declinedFor[target]=dec.declinedFor[target]||[]).push({po,donor,donorDesc});}
+      }
     }
     return dec;
   }
@@ -632,6 +788,54 @@ function parseBOM(wb){
   return {map,canDesc};
 }
 
+/* ---------- fiscal calendar 2026 (Alamance periods) ---------- */
+const FISCAL26=[
+ {p:1,s:'2026-01-01',e:'2026-01-31',w:5},{p:2,s:'2026-02-01',e:'2026-02-28',w:4},
+ {p:3,s:'2026-03-01',e:'2026-03-28',w:4},{p:4,s:'2026-03-29',e:'2026-04-25',w:4},
+ {p:5,s:'2026-04-26',e:'2026-05-30',w:5},{p:6,s:'2026-05-31',e:'2026-06-27',w:4},
+ {p:7,s:'2026-06-28',e:'2026-07-25',w:4},{p:8,s:'2026-07-26',e:'2026-08-29',w:5},
+ {p:9,s:'2026-08-30',e:'2026-09-26',w:4},{p:10,s:'2026-09-27',e:'2026-10-31',w:5},
+ {p:11,s:'2026-11-01',e:'2026-11-28',w:4},{p:12,s:'2026-11-29',e:'2026-12-31',w:4}
+].map(x=>({...x,sd:new Date(x.s+'T00:00:00'),ed:new Date(x.e+'T00:00:00')}));
+function fiscalWeeks(per){ // slice a period into its calendar weeks (last week absorbs the remainder)
+  const out=[];
+  for(let k=0;k<per.w;k++){
+    const sd=addD(per.sd,k*7);
+    const ed=k===per.w-1?per.ed:addD(sd,6);
+    if(sd>per.ed)break;
+    out.push({p:per.p,wk:k+1,sd,ed});
+  }
+  return out;
+}
+function fiscalNow(T){ // which period + week are we in today?
+  const per=FISCAL26.find(x=>T>=x.sd&&T<=x.ed)||null;
+  if(!per)return null;
+  const wk=fiscalWeeks(per).find(w=>T>=w.sd&&T<=w.ed)||null;
+  return {per,wk};
+}
+function planBuckets(mode,T){ // forward-looking buckets from today within the demand horizon
+  const H=180,list=[];
+  if(mode==='per'){
+    for(const per of FISCAL26){
+      if(per.ed<T)continue;
+      const so=Math.max(0,Math.round((per.sd-T)/DAY)),eo=Math.round((per.ed-T)/DAY);
+      if(so>=H)break;
+      list.push({label:'P'+per.p,sub:dstr(per.sd)+'–'+dstr(per.ed),sd:per.sd,ed:per.ed,so,eo:Math.min(eo,H-1),cur:T>=per.sd&&T<=per.ed,partial:eo>H-1});
+    }
+  }else{
+    for(const per of FISCAL26){
+      if(per.ed<T)continue;
+      for(const w of fiscalWeeks(per)){
+        if(w.ed<T)continue;
+        const so=Math.max(0,Math.round((w.sd-T)/DAY)),eo=Math.round((w.ed-T)/DAY);
+        if(so>=H)return list;
+        list.push({label:'P'+w.p+'·W'+w.wk,sub:dstr(w.sd)+'–'+dstr(w.ed),sd:w.sd,ed:w.ed,so,eo:Math.min(eo,H-1),cur:T>=w.sd&&T<=w.ed,partial:eo>H-1});
+      }
+    }
+  }
+  return list;
+}
+
 /* ---------- engine ---------- */
 function dim(y,p){return new Date(y,p,0).getDate();}
 function compute(){
@@ -674,6 +878,19 @@ function compute(){
       (drivers[comp.can]=drivers[comp.can]||[]).push({fg,rate,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch});
     }
   }
+  // ---- co-manufacturing customers: map cans -> customers, flag co-man cans ----
+  const comanList=[...state.coman];
+  const isComan=c=>{const lc=(c||'').toLowerCase();return comanList.some(m=>m&&lc.includes(m.toLowerCase()));};
+  const fgCust={};
+  if(state.pa)for(const fg in state.pa){fgCust[fg]=[...new Set(state.pa[fg].lines.map(l=>(l.cust||'').trim()).filter(Boolean))];}
+  const canCusts={},canComan={},canComanCusts={};
+  for(const can in drivers){
+    const s=new Set();
+    for(const dv of drivers[can])(fgCust[dv.fg]||[]).forEach(c=>s.add(c));
+    canCusts[can]=[...s].sort();
+    canComanCusts[can]=canCusts[can].filter(isComan);
+    canComan[can]=canComanCusts[can].length>0;
+  }
   const out=[];
   const allCans=new Set([...Object.keys(state.stock),...Object.keys(dem)]);
   for(const code of allCans){
@@ -707,10 +924,22 @@ function compute(){
     for(let i=0;i<H;i++){bal0-=d[i];if(bal0<0){needDay=i;break;}}
     let bal=onHand,runout=null;
     for(let i=0;i<H;i++){bal+=arrivals[i]-d[i];if(bal<0&&runout==null)runout=i;}
-    // raw shortfall from runout for COV days (used for suggest AND quick-pull check)
+    const coman=!!canComan[code];
+    const ov=state.bandOverride[code]||{};
+    // per-customer imported band (tightest wins across this can's customers)
+    let custMin=null,custMax=null,custIdeal=null;
+    for(const c of (canCusts[code]||[])){const cb=state.custBand[c];if(cb){if(cb.min!=null)custMin=custMin==null?cb.min:Math.max(custMin,cb.min);if(cb.max!=null)custMax=custMax==null?cb.max:Math.min(custMax,cb.max);if(cb.ideal!=null)custIdeal=custIdeal==null?cb.ideal:Math.min(custIdeal,cb.ideal);}}
+    const defMin=coman?state.comanMin:state.gMinDOS,defMax=coman?state.comanMax:state.gMaxDOS,defIdeal=coman?state.comanMax:state.gIdealDOS;
+    const bMin=ov.min!=null?ov.min:(custMin!=null?custMin:defMin);
+    const bMax=ov.max!=null?ov.max:(custMax!=null?custMax:defMax);
+    let bIdeal=ov.ideal!=null?ov.ideal:(custIdeal!=null?custIdeal:defIdeal);
+    bIdeal=Math.min(Math.max(bIdeal,bMin),bMax); // keep ideal inside [min,max]
+    const bandSrc=(ov.min!=null||ov.max!=null||ov.ideal!=null)?'can override':((custMin!=null||custMax!=null||custIdeal!=null)?'customer':(coman?'co-man default':'global default'));
+    const covWin=Math.max(1,Math.min(COV,bIdeal)); // order up to the IDEAL days of supply, capped by cover
+    // raw shortfall from runout for covWin days (used for suggest AND quick-pull check)
     let rawNeed=0;
     if(runout!=null){
-      for(let i=runout;i<Math.min(H,runout+COV);i++)rawNeed+=d[i]-arrivals[i];
+      for(let i=runout;i<Math.min(H,runout+covWin);i++)rawNeed+=d[i]-arrivals[i];
       let balAt=onHand;for(let i=0;i<runout;i++)balAt+=arrivals[i]-d[i];
       rawNeed=Math.max(0,rawNeed-Math.max(0,balAt));
     }
@@ -748,9 +977,14 @@ function compute(){
     let paFirst=null;
     for(const dd of fgAll){if(dd.paDay!=null&&(paFirst==null||dd.paDay<paFirst.day))paFirst={day:dd.paDay,date:dd.paDate,cust:dd.paCust,fg:dd.fg};}
     const custMatch=state.cust.size?fgAll.some(dd=>dd.custMatch):true;
+    // inventory-band status for every can with demand
+    let bandMinCans=null,bandMaxCans=null,bandStatus=null;
+    if(daily>0){bandMinCans=bMin*daily;bandMaxCans=bMax*daily;bandStatus=onHand<bandMinCans?'below':(onHand>bandMaxCans?'over':'in');}
     out.push({code,desc:st.desc,supplier:st.supplier,ns:st.ns,ss:st.ss,onHand,counted,cnt,sysOnHand:st.onHand,
       daily,dos,needDay,needBy,orderBy,runout,firstArr,incoming,overduePO,pos,suggest,trucks,lt,cls,pr,varFlag,
-      expedite,active,totDem,fgTop,fgFull,paFirst,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll});
+      expedite,active,totDem,fgTop,fgFull,paFirst,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll,
+      demArr:d,arrArr:arrivals,
+      coman,comanCusts:canComanCusts[code]||[],allCusts:canCusts[code]||[],cMin:bMin,cMax:bMax,bMin,bMax,bIdeal,bandSrc,bandMinCans,bandMaxCans,bandStatus,covWin});
   }
   out.sort((a,b)=>a.pr-b.pr||((a.needBy??9999)-(b.needBy??9999))||b.daily-a.daily);
   const stale=[];
@@ -782,7 +1016,7 @@ function compute(){
   const claimed=new Set();
   // pass 1: lock DSC-confirmed pairings
   for(const u of queue){
-    u.swapWith=null;u.swapSkip=null;u.swapConfirmed=false;u.swapDeclined=false;
+    u.swapWith=null;u.swapSkip=null;u.swapConfirmed=false;u.swapDeclined=false;u.swapAlt=false;u.declinedPOs=[];
     for(const s of usableSwaps){
       const k3=s.p.po+'|'+s.code+'|'+u.code;
       if(DEC.pair[k3]==='yes'&&!claimed.has(s.p.po+'|'+s.code)){
@@ -792,10 +1026,11 @@ function compute(){
   }
   // pass 2: greedy for the rest
   for(const u of queue){
+    u.declinedPOs=(DEC.declinedFor&&DEC.declinedFor[u.code])||[];
     if(u.swapWith)continue;
     if(!u.paFirst){u.swapSkip='forecast-only demand — swap reserved for firm PA shortfalls';continue;}
     if(u.suggest<MINSWAP){u.swapSkip='need ('+Math.round(u.suggest).toLocaleString()+') below min swap qty of '+MINSWAP.toLocaleString();continue;}
-    let declined=false;
+    let declined=u.declinedPOs.length>0;
     for(const s of usableSwaps){
       const key=s.p.po+'|'+s.code;
       if(claimed.has(key))continue;
@@ -804,10 +1039,8 @@ function compute(){
       const di=s.p.date?Math.round((s.p.date-T)/DAY):0;
       if(u.needBy==null||di<=u.needBy){u.swapWith=s;claimed.add(key);break;}
     }
-    if(!u.swapWith&&(declined||[...DEC.poNo].length)){
-      const wasDeclined=declined||Object.keys(DEC.pair).some(k=>DEC.pair[k]==='no'&&k.endsWith('|'+u.code));
-      if(wasDeclined){u.swapDeclined=true;u.swapSkip='DSC declined the proposed swap — need moved into the new-PO plan';}
-    }
+    if(u.swapWith&&declined){u.swapAlt=true;} // DSC said NO earlier — this is a re-proposed alternative donor PO
+    if(!u.swapWith&&declined){u.swapDeclined=true;u.swapSkip='DSC declined the proposed swap and no other donor PO qualifies — need moved into the new-PO plan';}
   }
   state.swapDeclinedCount=queue.filter(u=>u.swapDeclined).length;
   // ---- PO builder: mixed truckloads, MOQ multiples, PA priority ----
@@ -966,11 +1199,234 @@ function sec(id,icon,title,color,count,unit,summary,body,alarm){
     ${open?`<div class="secbody">${body}</div>`:''}
   </div>`;
 }
+/* ---------- consumption planner page ---------- */
+function plannerData(){
+  const T=today();
+  const q=state.q.toLowerCase();
+  const rows=state.rows.filter(x=>x.active&&x.totDem>1&&matchRow(x,q)&&(!state.cust.size||x.custMatch))
+    .sort((a,b)=>b.totDem-a.totDem);
+  const bks=planBuckets(state.planMode,T);
+  const data=rows.map(x=>{
+    let bal=x.onHand;
+    const cells=bks.map(b=>{
+      let need=0,arr=0;
+      for(let i=b.so;i<=b.eo;i++){need+=x.demArr[i];arr+=x.arrArr[i];}
+      bal+=arr-need;
+      return {need,arr,eop:bal};
+    });
+    return {x,cells};
+  });
+  return {T,bks,data};
+}
+function renderPlanner(){
+  const el=$('#planner');
+  if(!state.rows.length){el.innerHTML='';return;}
+  const {T,bks,data}=plannerData();
+  const now=fiscalNow(T);
+  const nowTxt=now?`Today <b>${dlong(T)}</b> · fiscal <b>P${now.per.p}</b>${now.wk?` · <b>Week ${now.wk.wk}</b> (${dstr(now.wk.sd)}–${dstr(now.wk.ed)})`:''} of ${now.per.w} — period runs ${dstr(now.per.sd)}–${dstr(now.per.ed)}`:'Today is outside the embedded 2026 fiscal calendar — buckets shown from calendar start';
+  if(!bks.length){el.innerHTML=`<div class="planbar"><span class="now">${nowTxt}</span></div><div class="emptyrow">No fiscal buckets in range.</div>`;return;}
+  const head=`<tr>
+    <th class="stick c1">Can #</th><th class="stick c2">Description</th><th class="stick c3">FG → goes into</th><th class="stick c4">On hand<span class="bsub">today</span></th>
+    ${bks.map(b=>`<th class="${b.cur?'cur':''}">${b.label}${b.cur?' · NOW':''}<span class="bsub">${b.sub}${b.partial?' (part.)':''}</span></th>`).join('')}
+  </tr>`;
+  const body=data.map(({x,cells})=>`<tr>
+    <td class="stick c1 mono">${x.code}</td>
+    <td class="stick c2" title="${x.desc}">${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</td>
+    <td class="stick c3" title="${x.fgFull.replace(/"/g,'&quot;')}">${x.fgTop||'—'}</td>
+    <td class="stick c4"><b>${fmt(x.onHand)}</b></td>
+    ${cells.map((c,i)=>`<td class="${bks[i].cur?'cur':''}">
+      <span class="need ${c.need<1?'z':''}">${c.need<1?'·':fmt(c.need)}</span>
+      ${c.arr>0?`<span class="sub po">+${fmt(c.arr)} PO</span>`:''}
+      <span class="sub ${c.eop<0?'neg':''}">end ${c.eop<0?'−':''}${fmt(Math.abs(c.eop))}</span>
+    </td>`).join('')}
+  </tr>`).join('');
+  const tot=bks.map((b,i)=>{
+    let need=0,arr=0;data.forEach(({cells})=>{need+=cells[i].need;arr+=cells[i].arr;});
+    return `<td class="${b.cur?'cur':''}"><span class="need">${fmt(need)}</span>${arr>0?`<span class="sub po">+${fmt(arr)} PO</span>`:''}</td>`;
+  }).join('');
+  el.innerHTML=`
+  <div class="planbar">
+    <div class="modetog"><button id="pmWk" class="${state.planMode==='wk'?'on':''}">By week</button><button id="pmPer" class="${state.planMode==='per'?'on':''}">By period (month)</button></div>
+    <span class="now">${nowTxt}</span>
+    <button class="btn ghost" id="planExp" style="margin-left:auto">⬇ Export planner</button>
+  </div>
+  <div class="secnote">Consumption per ${state.planMode==='wk'?'fiscal week':'fiscal period'} = the same live production need the board runs on (forecast × BOM cans-per-case + firm PA timing), from today forward. <b>end</b> = projected balance after the bucket (on hand − consumption + <span style="color:var(--green)">PO arrivals</span>) — red means projected shortfall by then. The current ${state.planMode==='wk'?'week':'period'} counts remaining days only (today onward). Horizon: 180 days.</div>
+  <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}
+    <tr class="tot"><td class="stick c1"></td><td class="stick c2">TOTAL — all cans shown</td><td class="stick c3"></td><td class="stick c4">${fmt(data.reduce((a,d)=>a+d.x.onHand,0))}</td>${tot}</tr>
+  </tbody></table></div>`;
+  $('#pmWk').onclick=()=>{state.planMode='wk';renderPlanner();};
+  $('#pmPer').onclick=()=>{state.planMode='per';renderPlanner();};
+  $('#planExp').onclick=exportPlanner;
+  const curTh=el.querySelector('.plantb thead th.cur');
+  if(curTh)el.querySelector('.planwrap').scrollLeft=Math.max(0,curTh.offsetLeft-460);
+  $('#hdMeta').textContent=`Consumption Planner · ${data.length} cans · ${bks.length} ${state.planMode==='wk'?'weeks':'periods'} ahead`;
+}
+function exportPlanner(){
+  const {T,bks,data}=plannerData();
+  if(!data.length){toast('No data to export');return;}
+  const rows=data.map(({x,cells})=>{
+    const r={'Can #':x.code,'Description':x.desc,'FG (top)':x.fgTop,'On hand today':Math.round(x.onHand)};
+    bks.forEach((b,i)=>{
+      r[b.label+' ('+b.sub+') need']=Math.round(cells[i].need);
+      r[b.label+' PO in']=Math.round(cells[i].arr);
+      r[b.label+' end bal']=Math.round(cells[i].eop);
+    });
+    return r;
+  });
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,state.planMode==='wk'?'By week':'By period');
+  XLSX.writeFile(wb,'Can_Consumption_Planner_'+(state.planMode==='wk'?'weekly_':'period_')+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Planner exported');
+}
+
+/* ---------- order schedule page ---------- */
+function fiscalLabelOf(date){ // e.g. "P8" for a given date
+  if(!date)return '';
+  const p=FISCAL26.find(x=>date>=x.sd&&date<=x.ed);
+  return p?('P'+p.p):(date>FISCAL26[FISCAL26.length-1].ed?'>P12':'<P1');
+}
+function orderSchedule(x){
+  // Roll the same rules forward into a sequence of orders across the 180-day horizon.
+  const H=180,daily=x.daily;
+  if(daily<=0||!x.active)return [];
+  const BUF=+$('#setBuf').value||7,MOQ=+$('#setMOQ').value||5000,TRUCK=+$('#setTruck').value||95000;
+  const rMOQ=q=>q<=0?0:Math.max(MOQ,Math.ceil(q/MOQ)*MOQ);
+  const dem=x.demArr,lead=x.lt;
+  const safety=x.bMin*daily;        // never fall below MIN days of supply
+  const target=x.bIdeal*daily;      // order up to IDEAL days of supply
+  const ceil=x.bMax*daily;          // never exceed MAX days of supply
+  const arrivals=new Float64Array(H);for(let i=0;i<H;i++)arrivals[i]=x.arrArr[i]||0;
+  const orders=[];let guard=0;
+  while(guard++<24){
+    // find first day projected on-hand dips below the safety floor
+    let bal=x.onHand,short=null;
+    for(let d=0;d<H;d++){bal+=arrivals[d]-dem[d];if(bal<safety){short=d;break;}}
+    if(short==null)break;                 // covered to the horizon
+    const needBy=short;                   // stock must be in-house by here
+    const placeBy=needBy-lead;            // place the order this many days out (may be ≤0 = today/overdue)
+    // balance the moment before the new order lands
+    let balAt=x.onHand;for(let d=0;d<needBy;d++)balAt+=arrivals[d]-dem[d];
+    let qty=target-balAt;                 // bring up to IDEAL
+    if(balAt+qty>ceil)qty=ceil-balAt;     // but never above MAX
+    qty=rMOQ(qty);
+    if(qty<MOQ)qty=MOQ;
+    if(needBy<H)arrivals[needBy]+=qty;
+    orders.push({placeBy,needBy,qty});
+    if(orders.length>=18)break;
+  }
+  // coversUntil per order = next order's delivery, else the day stock next dips below safety after the last order (or >180d)
+  for(let i=0;i<orders.length;i++){
+    if(i<orders.length-1){orders[i].coversUntil=orders[i+1].needBy;orders[i].coversLabel=null;}
+    else{
+      let bal=x.onHand,dip=null;for(let d=0;d<H;d++){bal+=arrivals[d]-dem[d];if(d>orders[i].needBy&&bal<safety){dip=d;break;}}
+      orders[i].coversUntil=dip;orders[i].coversLabel=dip==null?'beyond 180 days':null;
+    }
+    orders[i].trucks=orders[i].qty/TRUCK;
+  }
+  return orders;
+}
+function ordersData(){
+  const T=today();
+  const q=state.q.toLowerCase();
+  const rows=state.rows.filter(x=>x.active&&x.daily>0&&matchRow(x,q)&&(!state.cust.size||x.custMatch));
+  const out=[];
+  for(const x of rows){
+    const sch=orderSchedule(x);
+    if(sch.length)out.push({x,sch});
+  }
+  // most urgent first (earliest place-by)
+  out.sort((a,b)=>a.sch[0].placeBy-b.sch[0].placeBy);
+  return {T,out};
+}
+function renderOrders(){
+  const el=$('#orders');
+  if(!state.rows.length){el.innerHTML='';return;}
+  const {T,out}=ordersData();
+  const dfull=off=>off<=0?'TODAY'+(off<0?' ('+(-off)+'d late)':''):dlong(addD(T,off));
+  const dcov=(off,lbl)=>lbl?lbl:(off==null?'—':dstr(addD(T,off)));
+  const totalOrders=out.reduce((a,o)=>a+o.sch.length,0);
+  const body=out.map(({x,sch})=>{
+    const head=`<tr class="grp" data-c="${x.code}" style="cursor:pointer"><td colspan="9"><span class="mono">${x.code}</span> ${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}
+      <small>→ ${x.fgTop||'—'} · ${fmt(x.onHand)} on hand · ${fmt(x.daily)}/day · hold ${x.bMin}–${x.bMax}d (aim ${x.bIdeal}d)${x.coman?' · 🤝 co-man':''}${x.floor?' · floor':''} · ${sch.length} order${sch.length>1?'s':''} in next 180d</small></td></tr>`;
+    const lines=sch.map((o,i)=>{
+      const cls=o.placeBy<=0?'soon':(o.placeBy<=7?'wk':'');
+      return `<tr class="${i===0?'ord1':''}">
+        <td class="num">#${i+1}</td>
+        <td class="placeby ${cls}">${dfull(o.placeBy)}</td>
+        <td>${x.lt}d lead</td>
+        <td>${dstr(addD(T,o.needBy))} <span class="pchip">${fiscalLabelOf(addD(T,o.needBy))}</span></td>
+        <td class="num">${fmt(o.qty)}</td>
+        <td class="num">${o.trucks.toFixed(1)}</td>
+        <td class="cvr">${dcov(o.coversUntil,o.coversLabel)}${o.coversUntil!=null?' <span class="pchip">'+fiscalLabelOf(addD(T,o.coversUntil))+'</span>':''}</td>
+        <td>${x.bIdeal}d aim / ${x.bMax}d cap</td>
+      </tr>`;
+    }).join('');
+    return head+lines;
+  }).join('');
+  el.innerHTML=`
+  <div class="planbar">
+    <span class="now"><b>Order schedule</b> — every can's forward buy plan: place-by date → delivery → quantity → covered-until, rolled forward under the current rules (lead, buffer, MOQ, truck, and each can's Ideal/Min/Max days of supply).</span>
+    <button class="btn ghost" id="ordExp" style="margin-left:auto">⬇ Export order schedule</button>
+  </div>
+  <div class="secnote">${out.length} can${out.length===1?'':'s'} need ordering in the next 180 days · ${totalOrders} orders total. Orders are sized to reach the <b>Ideal</b> days of supply and never exceed <b>Max</b>, so you don't over-order; the next order fires only when stock would drop below <b>Min</b>. Existing open POs are already counted.</div>
+  <div class="ordwrap"><table class="ordtb"><thead><tr>
+    <th>#</th><th>Place order by</th><th>Lead</th><th>Delivered by</th><th>Qty (cans)</th><th>Trucks</th><th>Covers until</th><th>Band</th>
+  </tr></thead><tbody>${body||'<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--faint)">Everything is covered for 180 days — no orders needed.</td></tr>'}</tbody></table></div>`;
+  $('#ordExp').onclick=exportOrders;
+  el.querySelectorAll('tr.grp[data-c]').forEach(tr=>tr.onclick=()=>openModal(tr.dataset.c));
+  $('#hdMeta').textContent=`Order Schedule · ${out.length} cans · ${totalOrders} orders`;
+}
+function exportOrders(){
+  const {T,out}=ordersData();
+  if(!out.length){toast('No orders to schedule');return;}
+  const rows=[];
+  for(const {x,sch} of out)sch.forEach((o,i)=>rows.push({
+    'Can #':x.code,'Description':x.desc,'Goes into (FG)':x.fgTop,
+    'Order #':i+1,
+    'Place order by':o.placeBy<=0?('TODAY'+(o.placeBy<0?' ('+(-o.placeBy)+'d late)':'')):dstr(addD(T,o.placeBy)),
+    'Lead time (d)':x.lt,
+    'Delivered by':dstr(addD(T,o.needBy)),'Delivery period':fiscalLabelOf(addD(T,o.needBy)),
+    'Qty (cans)':Math.round(o.qty),'Trucks':+o.trucks.toFixed(2),
+    'Covers until':o.coversLabel?o.coversLabel:(o.coversUntil!=null?dstr(addD(T,o.coversUntil)):''),
+    'Covers thru period':o.coversUntil!=null?fiscalLabelOf(addD(T,o.coversUntil)):'',
+    'On hand now':Math.round(x.onHand),'Daily use':Math.round(x.daily),
+    'Aim days (ideal)':x.bIdeal,'Min days':x.bMin,'Max days':x.bMax,
+    'Co-man':x.coman?'YES':'','Floor stock':x.floor?'YES':''
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:8},{wch:34},{wch:18},{wch:7},{wch:20},{wch:9},{wch:12},{wch:9},{wch:11},{wch:7},{wch:14},{wch:9},{wch:11},{wch:9},{wch:11},{wch:8},{wch:8},{wch:8},{wch:9}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Order schedule');
+  XLSX.writeFile(wb,'Can_Order_Schedule_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Order schedule exported');
+}
+
 function render(){
   chips();
   const T=today();
+  // ---- page routing: board / consumption planner / order schedule ----
+  const page=state.page||'board';
+  const onPlan=page==='plan',onOrders=page==='orders',onBoard=page==='board';
+  $('#tabBoard').classList.toggle('on',onBoard);
+  $('#tabPlan').classList.toggle('on',onPlan);
+  $('#tabOrders').classList.toggle('on',onOrders);
+  $('#planner').style.display=onPlan?'block':'none';
+  $('#orders').style.display=onOrders?'block':'none';
+  $('#pgrid').style.display=onBoard?'flex':'none';
+  document.querySelectorAll('.floorbar,.comanbar').forEach(el=>el.style.display=onBoard?'flex':'none');
+  if(onPlan){
+    renderPlanner();
+    $('#empty').style.display=state.rows.length?'none':'block';
+    if(!state.rows.length)$('#hdMeta').textContent='no data loaded';
+    return;
+  }
+  if(onOrders){
+    renderOrders();
+    $('#empty').style.display=state.rows.length?'none':'block';
+    if(!state.rows.length)$('#hdMeta').textContent='no data loaded';
+    return;
+  }
   const q=state.q.toLowerCase();
-  const match=x=>!q||x.code.toLowerCase().includes(q)||x.desc.toLowerCase().includes(q);
+  const match=x=>matchRow(x,q);
   const base=state.rows.filter(x=>x.active&&match(x)&&(!state.cust.size||x.custMatch));
   $('#empty').style.display=state.rows.length?'none':'block';
   if(!state.rows.length){$('#pgrid').innerHTML='';$('#hdMeta').textContent='no data loaded';return;}
@@ -978,17 +1434,23 @@ function render(){
   const allPOs=[...plan.now,...plan.week];
   const queue=(state.queue||[]).filter(match);
   const swapActions=queue.filter(x=>x.swapWith);
+  const declined=queue.filter(x=>x.swapDeclined);
+  const declinedCodes=new Set(declined.map(x=>x.code));
+  const planPOfor=code=>allPOs.find(p=>p.lines.some(l=>l.code===code));
   const expedites=base.filter(x=>x.cls==='exp');
   const outs=base.filter(x=>x.cls==='out');
-  const swapsPool=(state.swaps||[]).filter(s=>match({code:s.code,desc:s.desc}));
-  const stale=(state.stale||[]).filter(s=>match({code:s.code,desc:s.desc}));
+  const swapsPool=(state.swaps||[]).filter(s=>match(s));
+  const stale=(state.stale||[]).filter(s=>match(s));
   const MOQ=+$('#setMOQ').value||5000;
 
   // ---- summary strip ----
   const custNote=state.cust.size?`<div class="stitem s-grn" style="border-color:#b8e2cc"><b>👥</b>filtered to ${state.cust.size} customer${state.cust.size>1?'s':''}</div>`:'';
+  const comanCansN=base.filter(x=>x.coman).length;
+  const comanBelow=base.filter(x=>x.coman&&x.bandStatus==='below').length;
   const strip=`<div class="strip">${custNote}
     <div class="stitem ${allPOs.length?'s-org':''}" data-goto="orders"><b>${allPOs.length}</b>POs to place</div>
     <div class="stitem ${swapActions.length?'s-grn':''}" data-goto="swaps"><b>${swapActions.length}</b>POs to swap</div>
+    <div class="stitem ${comanBelow?'s-red':(comanCansN?'s-grn':'')}" data-goto="coman"><b>${comanCansN}</b>co-man cans${comanBelow?` · ${comanBelow} low`:''}</div>
     <div class="stitem ${expedites.length?'s-org':''}" data-goto="exped"><b>${expedites.length}</b>expedites</div>
     <div class="stitem ${outs.length?'s-red':''}" data-goto="status"><b>${outs.length}</b>stocked out</div>
     <div class="stitem" data-goto="ignored"><b>${stale.length}</b>ignored POs</div>
@@ -997,7 +1459,7 @@ function render(){
   // ---- 1. POs to place ----
   const poCard=p=>`<div class="scard ${p.partial?'partial':''}">
     <div class="sch"><b>${p.id}</b><span class="scby">${p.placeBy<=0?'place TODAY':'place by '+dstr(addD(T,p.placeBy))}</span><span class="sctot">${fmt(p.total)} cans${p.partial?' · PARTIAL TRUCK':''}</span></div>
-    ${p.lines.map(l=>`<div class="scl" data-c="${l.code}"><span class="mono">${l.code}</span><span class="scd">${l.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}${l.pulled?' <i class="pull">pulled fwd</i>':''}</span><span class="scq">${fmt(l.qty)}</span></div>`).join('')}
+    ${p.lines.map(l=>`<div class="scl" data-c="${l.code}"><span class="mono">${l.code}</span><span class="scd">${l.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}${l.pulled?' <i class="pull">pulled fwd</i>':''}${declinedCodes.has(l.code)?' <span class="fromdec">⇄ swap declined by DSC → new PO</span>':''}</span><span class="scq">${fmt(l.qty)}</span></div>`).join('')}
   </div>`;
   const ordersBody=`${allPOs.length?`<div class="secnote">Each PO is one full ${fmt(+$('#setTruck').value||95000)}-can truck. Lines are always multiples of ${fmt(MOQ)} (min ${fmt(MOQ)}). Highest-priority PA needs are packed first.</div>`:''}
     <div class="cardcol">${allPOs.map(poCard).join('')||'<div class="emptyrow">No new POs needed — current stock, POs, swaps and expedites cover everything.</div>'}</div>
@@ -1010,8 +1472,11 @@ function render(){
     const remain=s.p.qty-swQty;
     const keep=remain>=MOQ?remain:0;
     const newLines=[{code:x.code,desc:x.desc,qty:swQty+ (remain>0&&remain<MOQ?remain:0)}].concat(keep?[{code:s.code,desc:s.desc,qty:keep}]:[]);
-    return `<div class="scard sw" >
-      <div class="sch"><b>PO ${s.p.po}</b><span class="scby">due ${dstr(s.p.date)}</span>${x.swapConfirmed?'<span class="confchip">✔ CONFIRMED BY DSC</span>':'<span class="propchip">PROPOSED — awaiting DSC</span>'}<span class="sctot">${fmt(s.p.qty)} cans</span></div>
+    const chip=x.swapConfirmed?'<span class="confchip">✔ CONFIRMED BY DSC</span>':(x.swapAlt?'<span class="altchip">↻ ALTERNATIVE PO — awaiting DSC</span>':'<span class="propchip">PROPOSED — awaiting DSC</span>');
+    const decNote=x.swapAlt&&x.declinedPOs.length?`<div class="decnote">✖ DSC said NO to ${x.declinedPOs.map(d=>'PO '+d.po).join(', ')} for this can — recommending PO ${s.p.po} as the alternative donor instead.</div>`:'';
+    return `<div class="scard sw ${x.swapAlt?'altcard':''}" >
+      <div class="sch"><b>PO ${s.p.po}</b><span class="scby">due ${dstr(s.p.date)}</span>${chip}<span class="sctot">${fmt(s.p.qty)} cans</span></div>
+      ${decNote}
       <div class="swlbl">CURRENTLY ON THE PO</div>
       <div class="scl" data-c="${s.code}"><span class="mono">${s.code}</span><span class="scd">${s.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</span><span class="scq">${fmt(s.p.qty)}</span></div>
       <div class="swlbl g">SWITCH TO</div>
@@ -1022,10 +1487,20 @@ function render(){
       <div class="scl total"><span class="scd">PO total (unchanged)</span><span class="scq">${fmt(s.p.qty)}</span></div>
     </div>`;
   };
+  // declined swaps — DSC said NO and no alternative donor PO qualifies
+  const declinedCard=x=>{
+    const pp=planPOfor(x.code);
+    const dest=pp?`need moved into the new-PO plan → <b>${pp.id}</b> (${pp.placeBy<=0?'place TODAY':'place by '+dstr(addD(T,pp.placeBy))})`:(x.suggest<MOQ?'remaining need is below MOQ — watch this can':'need moved into the new-PO plan');
+    return `<div class="scard declinedcard">
+      <div class="sch"><b>${x.declinedPOs.length?x.declinedPOs.map(d=>'PO '+d.po).join(', '):'Swap'}</b><span class="decchip">✖ NO — DECLINED BY DSC</span><span class="sctot">${fmt(x.suggest)} cans needed</span></div>
+      <div class="scl" data-c="${x.code}"><span class="mono">${x.code}</span><span class="scd"><b>${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</b></span><span class="scq">${fmt(x.suggest)}</span></div>
+      <div class="swwhy">DSC declined the proposed swap${x.declinedPOs.length?' on '+x.declinedPOs.map(d=>'PO '+d.po).join(', '):''} and no other donor PO qualifies (covered POs are either claimed, too small, or arrive too late). ${dest}. The declined donor PO will not be proposed again.</div>
+    </div>`;
+  };
   const decLoaded=state.files.swapdec;
-  const declined=queue.filter(x=>x.swapDeclined);
-  const swapsBody=`<div class="secnote"><b>Workflow:</b> 1) Export the <b>swap decision template</b> below · 2) DSC fills the <b>DSC Decision</b> column with YES or NO · 3) drop the file back here (✅ Swap Decisions tile or the big drop zone) — YES swaps lock in as confirmed, NO swaps are pulled out and those needs automatically become new POs in the plan above.${decLoaded?` <b style="color:var(--green)">Decisions loaded: ${decLoaded}</b>`:''}${declined.length?` <b style="color:var(--red)">${declined.length} declined → moved to new POs.</b>`:''}</div>
-    <div class="cardcol">${swapActions.map(swapCard).join('')||'<div class="emptyrow">No swaps needed today.</div>'}</div>
+  const altCount=swapActions.filter(x=>x.swapAlt).length;
+  const swapsBody=`<div class="secnote"><b>Workflow:</b> 1) Export the <b>swap decision template</b> below · 2) DSC fills the <b>DSC Decision</b> column with YES or NO · 3) drop the file back here (✅ Swap Decisions tile or the big drop zone) — YES swaps lock in as <span class="confchip">✔ CONFIRMED</span>; NO swaps show below as <span class="decchip">✖ DECLINED</span>: if another covered PO qualifies it is re-proposed as an <span class="altchip">↻ ALTERNATIVE PO</span>, otherwise the need automatically becomes a new PO in the plan above (marked <span class="fromdec">⇄ swap declined by DSC → new PO</span>).${decLoaded?` <b style="color:var(--green)">Decisions loaded: ${decLoaded}</b>`:''}${altCount?` <b style="color:var(--blue)">${altCount} alternative PO${altCount>1?'s':''} re-proposed after a NO.</b>`:''}${declined.length?` <b style="color:var(--red)">${declined.length} declined with no alternative → moved to new POs.</b>`:''}</div>
+    <div class="cardcol">${(swapActions.map(swapCard).join('')+declined.map(declinedCard).join(''))||'<div class="emptyrow">No swaps needed today.</div>'}</div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       ${(swapActions.length||declined.length)?`<button class="btn secexp" data-x="swaptpl">⬇ Swap decision template (for DSC)</button>`:''}
       ${swapActions.length?`<button class="btn ghost secexp" data-x="simple">⬇ Export swap list</button>`:''}
@@ -1046,7 +1521,7 @@ function render(){
     ${queue.map((x,i)=>{const a=actionOf(x);
       return `<div class="qrow" data-c="${x.code}"><span class="rk">#${i+1}</span>
       <span class="tagc ${TAG[x.cls][1]}">${TAG[x.cls][0]}</span>
-      <div class="qi"><div class="l1"><small>${x.code}</small>${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}${x.floor?'<span class="fschip">FLOOR</span>':''}${x.quickPull?'<span class="fschip">DSC✓</span>':''} ${srcChip(x)}</div>
+      <div class="qi"><div class="l1"><small>${x.code}</small>${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}${x.floor?'<span class="fschip">FLOOR</span>':''}${x.quickPull?'<span class="fschip">DSC✓</span>':''}${x.coman?'<span class="cmtag" title="Co-manufacturing — held to a tight '+x.cMin+'–'+x.cMax+'d band">🤝 CO-MAN</span>':''} ${srcChip(x)}</div>
       <div class="l2">${x.paFirst?('Firm PA: <b>'+((x.paFirst.cust||'').trim()||'customer')+'</b> ships <b>'+dstr(x.paFirst.date)+'</b> on '+x.paFirst.fg):'Forecast-driven'} · need by <b>${x.needBy!=null?dstr(addD(T,x.needBy)):'—'}</b> · ${plain(a.t).slice(0,70)} <span class="fgm">→ ${x.fgTop||''}</span></div></div>
       </div>`;}).join('')||'<div class="emptyrow">Queue is clear.</div>'}
     ${queue.length?`<button class="btn ghost secexp" data-x="queue">⬇ Export queue</button>`:''}`;
@@ -1057,6 +1532,18 @@ function render(){
       <div class="nm"><small>${s.code}</small>PO ${s.p.po} · ${s.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}<span class="fg">${s.reason}</span></div>
       <div class="val" style="color:var(--green)">${fmt(s.p.qty)}<small>due ${dstr(s.p.date)}</small></div></div>`).join('')||'<div class="emptyrow">No covered POs available.</div>'}
     ${swapsPool.length?`<button class="btn ghost secexp" data-x="swap">⬇ Export pool</button>`:''}`;
+
+  // ---- 5b. co-manufacturing band ----
+  const comanCans=base.filter(x=>x.coman);
+  const cmBadge=x=>x.bandStatus==='below'?'<span class="cmbadge cm-below">BELOW MIN</span>':(x.bandStatus==='over'?'<span class="cmbadge cm-over">OVER MAX</span>':(x.bandStatus==='in'?'<span class="cmbadge cm-in">IN BAND</span>':''));
+  const comanBody=`<div class="secnote">Cans that feed co-manufacturing customers (<b>${[...state.coman].join(', ')||'none set'}</b>). These are held to a <b>tight ${state.comanMin}–${state.comanMax} day</b> on-hand band — ordered a week ahead, never overstocked. Orders for these use the MAX-day window as their cover instead of the standard ${(+$('#setCov').value||45)}-day cover. Set the band and add customers in the 🤝 bar up top; export the per-customer plan to hand-tune each can's MIN/MAX and re-import.</div>
+    ${comanCans.map(x=>{
+      const dosNow=x.daily>0?(x.onHand/x.daily).toFixed(1):'∞';
+      return `<div class="prow" data-c="${x.code}"><span class="tagc ${x.bandStatus==='below'?'tg-out':(x.bandStatus==='over'?'tg-wk':'tg-ok')}">${x.bandStatus==='below'?'LOW':(x.bandStatus==='over'?'HIGH':'OK')}</span>
+      <div class="nm"><small>${x.code}</small>${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')} ${cmBadge(x)}<span class="fg">${x.comanCusts.join(', ')} · hold ${x.cMin}–${x.cMax}d (${fmt(x.bandMinCans)}–${fmt(x.bandMaxCans)} cans)${x.floor?' · FLOOR (quick-turn)':''}${state.bandOverride[x.code]?' · custom band':''}</span></div>
+      <div class="val" style="color:${x.bandStatus==='below'?'var(--red)':(x.bandStatus==='over'?'var(--orange)':'var(--green)')}">${fmt(x.onHand)}<small>${dosNow}d on hand</small></div></div>`;
+    }).join('')||'<div class="emptyrow">No co-man cans matched — check the customer names in the 🤝 bar against your Live PA, or load Live PA.</div>'}
+    ${comanCans.length?`<button class="btn secexp" data-x="coman">⬇ Co-man on-hand plan (per customer)</button>`:''}`;
 
   // ---- 6. ignored POs ----
   const staleBody=`<div class="secnote">Overdue > ${+$('#setStale').value||3} days, or short-ship leftovers < ${fmt(+$('#setRemnant').value||5000)} cans — excluded from all math. Clear these from the system.</div>
@@ -1082,10 +1569,11 @@ function render(){
 
   $('#pgrid').innerHTML=strip
     +sec('orders','📝','POs need to be ordered','var(--orange)',allPOs.length,'POs',`${fmt(allPOs.reduce((a,p)=>a+p.total,0))} cans · ${plan.now.length} today, ${plan.week.length} next week`,ordersBody,true)
-    +sec('swaps','⇄','POs need to be swapped','var(--green)',swapActions.length,'swaps','existing POs redirected to firm PA needs',swapsBody,false)
+    +sec('swaps','⇄','POs need to be swapped','var(--green)',swapActions.length,'swaps',`existing POs redirected to firm PA needs${swapActions.filter(x=>x.swapAlt).length?` · ${swapActions.filter(x=>x.swapAlt).length} alternative after NO`:''}${declined.length?` · ${declined.length} ✖ declined by DSC`:''}`,swapsBody,false)
     +sec('exped','⏩','POs to expedite','var(--orange)',expedites.length,'POs','arriving after the need-by date — pull in',expBody,true)
     +sec('queue','📋','Priority queue — detail','var(--red)',queue.length,'cans','the ranking behind the orders & swaps',queueBody,false)
     +sec('pool','🟢','Swappable PO pool','var(--green)',swapsPool.length,'POs',`${fmt(swapsPool.reduce((a,s)=>a+s.p.qty,0))} cans available to trade`,poolBody,false)
+    +sec('coman','🤝','Co-manufacturing — inventory band','#2f5da8',comanCans.length,'cans',`held to ${state.comanMin}–${state.comanMax} days · ${comanCans.filter(x=>x.bandStatus==='below').length} below min, ${comanCans.filter(x=>x.bandStatus==='over').length} over max`,comanBody,comanCans.some(x=>x.bandStatus==='below'))
     +sec('ignored','🗑','Ignored POs — stale & short-ships','var(--faint)',stale.length,'lines',`${fmt(stale.reduce((a,s)=>a+s.p.qty,0))} cans of dead supply to clear`,staleBody,false)
     +sec('status','📦','All cans by status','var(--blue)',base.length,'cans','stocked out · order timing · variances · covered',statusBody,false);
 
@@ -1099,7 +1587,7 @@ function render(){
     const k=el.dataset.x;
     if(k==='plan')exportPlan();else if(k==='simple')exportSimple();else if(k==='queue')exportQueue();
     else if(k==='swaptpl')exportSwapTemplate();
-    else if(k==='swap')exportSwaps();else if(k==='stale')exportStale();
+    else if(k==='swap')exportSwaps();else if(k==='stale')exportStale();else if(k==='coman')exportComan();
     else if(k==='exped')exportRows(expedites,'Cans_Expedite');});
   const act=state.rows.filter(x=>x.active&&['out','exp','now'].includes(x.cls)).length;
   $('#hdMeta').textContent=`${state.rows.filter(x=>x.active).length} active cans · ${allPOs.length} POs to place · ${swapActions.length} swaps · ${act} urgent`;
@@ -1121,7 +1609,7 @@ function removeFile(k){
   else if(k==='po')state.po=null;
   else if(k==='count')state.count=null;
   else if(k==='dsc'){state.dsc=null;state.dscTot=null;}
-  else if(k==='swapdec'){state.swapDec={pair:{},poNo:new Set()};}
+  else if(k==='swapdec'){state.swapDec={pair:{},poNo:new Set(),declinedFor:{}};}
   else if(k==='forecast'){state.forecast=EMB.forecast;}
   else if(k==='bom'){state.billMap=EMB.billMap;state.canDesc=EMB.canDesc;}
   state.files[k]=(k==='forecast'||k==='bom')?'built-in':null;
@@ -1148,7 +1636,7 @@ function chips(){
     up.addEventListener('drop',e=>handleFiles([...e.dataTransfer.files]));
   });
   document.querySelectorAll('.uprm').forEach(b=>b.onclick=e=>{e.stopPropagation();removeFile(b.dataset.rm);});
-  custUI();
+  custUI();comanUI();
 }
 /* ---------- customer filter ---------- */
 function custList(){
@@ -1176,7 +1664,173 @@ function custUI(){
     compute();custUI();
   });
 }
-/* ---------- processing ---------- */
+/* ---------- co-manufacturing customers ---------- */
+function comanUI(){
+  const chips=$('#comanChips');if(!chips)return;
+  const list=[...state.coman];
+  chips.innerHTML=list.map(c=>`<span class="cmchip">${c}<button data-cm="${c.replace(/"/g,'&quot;')}" title="remove">✕</button></span>`).join('')||'<span style="font-size:11px;color:var(--faint)">no co-man customers — add one →</span>';
+  chips.querySelectorAll('button[data-cm]').forEach(b=>b.onclick=()=>{state.coman.delete(b.dataset.cm);comanUI();compute();});
+  // populate add dropdown from known PA customers not already co-man (case-insensitive)
+  const known=custList();
+  const lc=[...state.coman].map(s=>s.toLowerCase());
+  const opts=known.filter(c=>!lc.some(m=>c.toLowerCase().includes(m)));
+  const sel=$('#comanAdd');
+  sel.innerHTML='<option value="">+ add customer…</option>'+opts.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('')+'<option value="__type__">＋ type a name…</option>';
+  sel.onchange=()=>{
+    let v=sel.value;if(!v)return;
+    if(v==='__type__'){v=prompt('Add a co-manufacturing customer name (matched by "contains", case-insensitive):','');if(!v){sel.value='';return;}v=v.trim();if(!v){sel.value='';return;}}
+    state.coman.add(v);sel.value='';comanUI();compute();
+  };
+  $('#setComanMin').value=state.comanMin;$('#setComanMax').value=state.comanMax;
+  if($('#setMinDOS'))$('#setMinDOS').value=state.gMinDOS;
+  if($('#setIdealDOS'))$('#setIdealDOS').value=state.gIdealDOS;
+  if($('#setMaxDOS'))$('#setMaxDOS').value=state.gMaxDOS;
+  const n=state.rows.filter(x=>x.coman).length;
+  const ovN=Object.keys(state.bandOverride).length,cbN=Object.keys(state.custBand).length;
+  $('#comanCount').textContent=state.rows.length?`${n} co-man can${n===1?'':'s'} impacted${(ovN||cbN)?` · ${ovN} per-can, ${cbN} per-customer band${(ovN+cbN)===1?'':'s'} loaded`:''}`:'';
+}
+function exportCustomerBands(){
+  // one row per customer: Customer, Ideal, Min, Max days of supply
+  const custs=custList();
+  if(!custs.length){toast('No customers yet — load Live PA first');return;}
+  // effective per-customer band = customer override else co-man default (if co-man name) else global
+  const isComan=c=>{const lc=(c||'').toLowerCase();return [...state.coman].some(m=>m&&lc.includes(m.toLowerCase()));};
+  const rows=custs.map(c=>{
+    const cb=state.custBand[c]||{};
+    const cm=isComan(c);
+    const min=cb.min!=null?cb.min:(cm?state.comanMin:state.gMinDOS);
+    const max=cb.max!=null?cb.max:(cm?state.comanMax:state.gMaxDOS);
+    let ideal=cb.ideal!=null?cb.ideal:(cm?state.comanMax:state.gIdealDOS);
+    ideal=Math.min(Math.max(ideal,min),max);
+    return {
+      'Customer':c,
+      'Ideal days of supply':ideal,
+      'Minimum days of supply':min,
+      'Maximum days of supply':max
+    };
+  });
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:34},{wch:20},{wch:22},{wch:22}];
+  const info=XLSX.utils.aoa_to_sheet([
+    ['Customer on-hand policy — days of supply to hold on their cans'],
+    [''],
+    ['One row per customer. Set the days of supply you want to hold on the cans that serve each customer:'],
+    ['  • Ideal days of supply  — the target we order up to.'],
+    ['  • Minimum days of supply — never let their cans fall below this.'],
+    ['  • Maximum days of supply — never build their cans above this.'],
+    [''],
+    ['Edit the numbers, save, then click "⬆ Import bands" on the dashboard. The board re-plans every can that serves each customer to that policy.'],
+    ['Leave a customer blank to use the generic defaults set at the top of the dashboard (Ideal '+state.gIdealDOS+' / Min '+state.gMinDOS+' / Max '+state.gMaxDOS+' days).'],
+    ['Co-manufacturing customers default to Min '+state.comanMin+' / Max '+state.comanMax+' days.'],
+    [''],
+    ['Standard settings still apply: lead time '+(+$('#setLT').value||28)+'d, production buffer '+(+$('#setBuf').value||7)+'d, cover '+(+$('#setCov').value||45)+'d. Floor-stock cans follow their own quick-turn rule.']
+  ]);
+  info['!cols']=[{wch:120}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Customer policy');
+  XLSX.utils.book_append_sheet(wb,info,'Instructions');
+  XLSX.writeFile(wb,'Customer_DaysOfSupply_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Customer policy exported — set Ideal/Min/Max days and re-import');
+}
+function bandRows(scope){ // scope: 'all' or 'coman'
+  const rows=[];
+  const cans=state.rows.filter(x=>x.active&&x.totDem>1&&(scope==='coman'?x.coman:true));
+  const byCust={};
+  for(const x of cans){
+    const cs=scope==='coman'?x.comanCusts:((x.allCusts&&x.allCusts.length)?x.allCusts:['(forecast — no PA customer)']);
+    for(const c of cs)(byCust[c]=byCust[c]||[]).push(x);
+  }
+  for(const c of Object.keys(byCust).sort()){
+    byCust[c].sort((a,b)=>b.daily-a.daily);
+    for(const x of byCust[c]){
+      const specified=(state.bandOverride[x.code]&&(state.bandOverride[x.code].min!=null||state.bandOverride[x.code].max!=null))||x.bandSrc==='customer';
+      rows.push({
+        'Customer':c,
+        'Can #':x.code,
+        'Description':x.desc,
+        'Finished goods':x.fgTop,
+        'On hand (cans)':Math.round(x.onHand),
+        'Daily use (cans/day)':Math.round(x.daily),
+        'Days of supply now':x.daily>0?+(x.onHand/x.daily).toFixed(1):'',
+        'MIN days to hold':x.bMin,
+        'MAX days to hold':x.bMax,
+        'MIN on-hand (cans)':x.bandMinCans!=null?Math.round(x.bandMinCans):'',
+        'MAX on-hand (cans)':x.bandMaxCans!=null?Math.round(x.bandMaxCans):'',
+        'Status':x.bandStatus==='below'?'BELOW MIN — order up':(x.bandStatus==='over'?'OVER MAX — hold ordering':(x.bandStatus==='in'?'IN BAND — ok':'no daily demand')),
+        'Band source':specified?x.bandSrc:'GENERIC (global '+state.gMinDOS+'/'+state.gMaxDOS+'d)',
+        'Co-man?':x.coman?'YES':'no',
+        'Lead time (d)':x.lt,
+        'Floor stock?':x.floor?'YES — DSC floor (different rule)':'no',
+        'Rule':`Hold between ${x.bMin} and ${x.bMax} days of supply; order a week ahead; do not exceed MAX, do not fall below MIN.`
+      });
+    }
+  }
+  return rows;
+}
+function exportBands(scope){
+  const rows=bandRows(scope);
+  if(!rows.length){toast(scope==='coman'?'No co-man cans yet — check the customer names match Live PA':'No cans with demand yet — load Live PA / Forecast');return;}
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:24},{wch:8},{wch:36},{wch:20},{wch:14},{wch:16},{wch:16},{wch:15},{wch:15},{wch:16},{wch:16},{wch:24},{wch:20},{wch:8},{wch:11},{wch:30},{wch:82}];
+  const info=XLSX.utils.aoa_to_sheet([
+    [(scope==='coman'?'Co-manufacturing':'All-customer')+' on-hand band plan — how to use'],
+    [''],
+    ['Each row is a customer × can. MIN / MAX days = the days-of-supply band we want to hold on that can.'],
+    ['MIN on-hand (cans) = MIN days × daily use.   MAX on-hand (cans) = MAX days × daily use.'],
+    ['Goal: keep On hand inside [MIN, MAX] — never order above MAX, never fall below MIN.'],
+    [''],
+    ['TO ADJUST: edit "MIN days to hold" and/or "MAX days to hold" on any row, save, then click "⬆ Import bands" on the dashboard.'],
+    ['  • Fill a value on a specific CAN row  → that can gets its own band (overrides everything).'],
+    ['  • Fill values on every row for a CUSTOMER  → that customer\'s cans all use that band.'],
+    ['  • Leave a row BLANK  → it follows the GENERIC global bounds set at the top of the dashboard'],
+    ['      (currently Min '+state.gMinDOS+' days / Max '+state.gMaxDOS+' days). Co-man cans default to '+state.comanMin+'/'+state.comanMax+' days.'],
+    [''],
+    ['Standard settings still apply: lead time '+(+$('#setLT').value||28)+'d, production buffer '+(+$('#setBuf').value||7)+'d, truck '+fmt(+$('#setTruck').value||95000)+', cover '+(+$('#setCov').value||45)+'d.'],
+    ['Floor-stock cans (Floor stock? = YES) are quick-turn from DSC and follow their own rule.']
+  ]);
+  info['!cols']=[{wch:120}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,scope==='coman'?'Co-man bands':'On-hand bands');
+  XLSX.utils.book_append_sheet(wb,info,'Instructions');
+  XLSX.writeFile(wb,(scope==='coman'?'Co-man':'AllCustomer')+'_OnHand_Bands_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Band plan exported — edit MIN/MAX days and re-import to adjust');
+}
+function exportComan(){exportBands('coman');}
+function importBands(file){
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const ov={},cb={};let nCan=0,nCust=0;
+      for(const sn of wb.SheetNames){
+        const r=rws(wb.Sheets[sn]);
+        const h=(r[0]||[]).map(x=>String(x||'').trim().toLowerCase());
+        const iC=h.findIndex(x=>x.includes('can #')||x==='can'||x.includes('can#')||x.includes('item code'));
+        const iCust=h.findIndex(x=>x.includes('customer'));
+        const iMin=h.findIndex(x=>x.includes('min')&&x.includes('day'));
+        const iMax=h.findIndex(x=>x.includes('max')&&x.includes('day'));
+        const iIdeal=h.findIndex(x=>x.includes('ideal')&&x.includes('day'));
+        if(iMin<0&&iMax<0&&iIdeal<0)continue;
+        const num=v=>{if(v==null||v==='')return null;const n=+v;return isNaN(n)?null:n;};
+        for(let i=1;i<r.length;i++){
+          const mn=iMin>=0?num(r[i][iMin]):null,mx=iMax>=0?num(r[i][iMax]):null,id=iIdeal>=0?num(r[i][iIdeal]):null;
+          if(mn==null&&mx==null&&id==null)continue; // blank row → follows generic bounds
+          const codeM=iC>=0?String(r[i][iC]||'').trim().match(/\d{4,6}/):null;
+          if(codeM){const rec=ov[codeM[0]]||{};if(mn!=null)rec.min=mn;if(mx!=null)rec.max=mx;if(id!=null)rec.ideal=id;ov[codeM[0]]=rec;nCan++;}
+          else if(iCust>=0){const cu=String(r[i][iCust]||'').trim();if(cu&&!/forecast/i.test(cu)){const rec=cb[cu]||{};if(mn!=null)rec.min=mn;if(mx!=null)rec.max=mx;if(id!=null)rec.ideal=id;cb[cu]=rec;nCust++;}}
+        }
+        break;
+      }
+      if(!nCan&&!nCust){toast('No MIN/MAX day values found — leave blank to use the generic bounds');return;}
+      state.bandOverride=ov;state.custBand=cb;
+      toast(`Bands loaded: ${nCan} per-can, ${nCust} per-customer — blanks follow the generic ${state.gMinDOS}/${state.gMaxDOS}d bounds`);
+      compute();
+    }catch(err){toast('Could not read that file');}
+  };
+  rd.readAsArrayBuffer(file);
+}
+function importComanBands(file){importBands(file);}
+
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function procStep(step,sub,pct){$('#pstep').textContent=step;$('#psub').textContent=sub||'';$('#pbar').style.width=pct+'%';await sleep(380);}
 async function handleFiles(list){
@@ -1197,7 +1851,16 @@ async function handleFiles(list){
       else if(t==='bom'){const p=parseBOM(wb);state.billMap=p.map;Object.assign(state.canDesc,p.canDesc);state.files.bom=f.name;names.push('BOM');}
       else if(t==='swapdec'){
         const dcm=parseSwapDec(wb);
-        if(dcm){state.swapDec=dcm;state.files.swapdec=f.name;names.push('Swap Decisions ('+Object.keys(dcm.pair).length/2+' answered)');}
+        if(dcm){
+          // merge with earlier decisions so a PO DSC already declined stays declined across round-trips
+          const prev=state.swapDec||{pair:{},poNo:new Set(),declinedFor:{}};
+          const mg={pair:{...(prev.pair||{}),...dcm.pair},poNo:new Set([...(prev.poNo||[]),...dcm.poNo]),declinedFor:{...(prev.declinedFor||{})}};
+          for(const t in (dcm.declinedFor||{})){
+            const seen=new Set((mg.declinedFor[t]||[]).map(d=>d.po));
+            mg.declinedFor[t]=(mg.declinedFor[t]||[]).concat(dcm.declinedFor[t].filter(d=>!seen.has(d.po)));
+          }
+          state.swapDec=mg;state.files.swapdec=f.name;names.push('Swap Decisions ('+Object.keys(dcm.pair).length/2+' answered)');
+        }
         else alert(`Couldn't read decisions from "${f.name}" — keep the template's columns.`);
       }
       else if(t==='dsc'){
@@ -1233,7 +1896,8 @@ function openModal(code){
     <tr><td>Lead time applied</td><td>${x.lt}d${x.floor?' (floor-stock list)':(x.quickPull?' (DSC floor covers need)':'')}</td></tr>
     ${x.dscOH!=null?`<tr><td>DSC floor (current period)</td><td class="pos">${fmt(x.dscOH)}</td></tr>`:''}
     ${x.dscTot!=null?`<tr><td>DSC floor (all lots)</td><td class="pos">${fmt(x.dscTot)}</td></tr>`:''}
-    <tr><td>Suggested buy</td><td>${x.suggest?fmt(x.suggest)+' (≈'+x.trucks.toFixed(1)+' trk)':'—'}</td></tr>`;
+    <tr><td>Suggested buy</td><td>${x.suggest?fmt(x.suggest)+' (≈'+x.trucks.toFixed(1)+' trk)':'—'}</td></tr>
+    ${x.bandStatus?`<tr><td>On-hand band</td><td class="${x.bandStatus==='below'?'neg':(x.bandStatus==='over'?'':'pos')}">${x.coman?`<b style="color:#2f5da8">🤝 ${x.comanCusts.join(', ')}</b> — `:''}hold ${x.bMin}–${x.bMax}d (${fmt(x.bandMinCans)}–${fmt(x.bandMaxCans)} cans)${x.bandStatus==='below'?' · BELOW MIN':(x.bandStatus==='over'?' · OVER MAX':' · in band')} · <span style="color:var(--faint)">${x.bandSrc}</span></td></tr>`:''}`;
   $('#modal').innerHTML=`
     <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.fgTop?`<br>→ goes into: <b style="color:var(--ink)">${x.fgTop}</b>`:''}</div></div><button class="x" id="mx">✕</button></div>
     <div class="mbody">
@@ -1246,10 +1910,79 @@ function openModal(code){
              <div class="mh" style="margin-top:14px">Open purchase orders</div><table class="mt">${pos}</table></div>
       </div>
     </div>
-    <div class="mfoot"><button class="btn" id="mexp">⬇ Export this can</button><button class="btn ghost" id="mclose">Close</button></div>`;
+    <div class="mfoot"><button class="btn" id="mpdf">⬇ Download PDF</button><button class="btn ghost" id="mexp">⬇ Export to Excel</button><button class="btn ghost" id="mclose">Close</button></div>`;
   $('#ovl').classList.add('show');
   $('#mx').onclick=$('#mclose').onclick=()=>$('#ovl').classList.remove('show');
   $('#mexp').onclick=()=>exportRows([x],'Can_'+x.code);
+  $('#mpdf').onclick=()=>downloadItemPDF(x.code);
+}
+function printModal(){document.body.classList.add('printing');setTimeout(()=>{window.print();setTimeout(()=>document.body.classList.remove('printing'),600);},60);}
+function downloadItemPDF(code){
+  const x=state.rows.find(r=>r.code===code);if(!x)return;
+  const modal=$('#modal');
+  const clone=modal.cloneNode(true);
+  clone.querySelectorAll('.x,.mfoot').forEach(n=>n.remove());
+  clone.className='';clone.removeAttribute('id');clone.removeAttribute('style');
+  // clean leadership-ready dossier: header + the exact item detail
+  const doc=document.createElement('div');
+  doc.className='pdfdoc';
+  const logoSrc=(document.getElementById('brandLogo')||{}).src||'';
+  const hd=document.createElement('div');hd.className='pdfhead';
+  hd.innerHTML=`${logoSrc?`<img src="${logoSrc}" alt="">`:''}<div class="pt"><b>Can Supply Control — Item Dossier</b><span>Alamance Foods · Raw Material · DS Containers</span></div><div class="pd">${today().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})}</div>`;
+  doc.appendChild(hd);
+  while(clone.firstChild)doc.appendChild(clone.firstChild);
+  // visible top-origin stage: fixed 820px doc at (0,0) so the capture geometry is exact
+  const host=document.createElement('div');
+  host.className='pdfstage';
+  host.innerHTML='<div class="pdfnote">Building PDF… this closes automatically</div>';
+  host.appendChild(doc);
+  document.body.appendChild(host);
+  const fn='Can_'+x.code+'_dossier_'+new Date().toISOString().slice(0,10)+'.pdf';
+  const cleanup=()=>{try{host.remove();}catch(e){}};
+  const H2C=window.html2canvas;
+  const JSPDF=window.jspdf&&window.jspdf.jsPDF;
+  if(!H2C||!JSPDF){cleanup();printModal();return;}
+  // capture the element at EXACTLY its own width — no window-width scaling games
+  const W=doc.offsetWidth||820;
+  H2C(doc,{scale:2,backgroundColor:'#ffffff',useCORS:true,scrollX:0,scrollY:0,
+           width:W,height:doc.offsetHeight,windowWidth:W})
+  .then(canvas=>{
+    const pdf=new JSPDF('p','mm','a4');
+    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+    const M=8, cw=pw-2*M, chMM=ph-2*M;
+    const ratio=cw/canvas.width;               // mm per canvas px
+    const pageHpx=Math.floor(chMM/ratio);      // canvas px per PDF page
+    const ctxSrc=canvas.getContext('2d');
+    // find a mostly-blank row near a proposed cut so text lines aren't sliced
+    const findCut=(startY)=>{
+      const limit=Math.min(startY,canvas.height);
+      let best=limit;
+      try{
+        for(let y=limit-1;y>limit-160&&y>0;y--){
+          const row=ctxSrc.getImageData(0,y,canvas.width,1).data;
+          let ink=0;
+          for(let i=0;i<row.length;i+=16){const r=row[i],g=row[i+1],b=row[i+2];if(r<245||g<245||b<245)ink++;}
+          if(ink<3){best=y;break;}
+        }
+      }catch(e){}
+      return best;
+    };
+    let y=0,first=true;
+    while(y<canvas.height-2){
+      let cut=y+pageHpx;
+      if(cut<canvas.height)cut=findCut(cut);
+      const sliceH=Math.min(cut,canvas.height)-y;
+      const slice=document.createElement('canvas');
+      slice.width=canvas.width;slice.height=sliceH;
+      slice.getContext('2d').drawImage(canvas,0,y,canvas.width,sliceH,0,0,canvas.width,sliceH);
+      if(!first)pdf.addPage();
+      pdf.addImage(slice.toDataURL('image/jpeg',0.95),'JPEG',M,M,cw,sliceH*ratio);
+      first=false;y+=sliceH;
+    }
+    pdf.save(fn);
+    cleanup();toast('PDF downloaded');
+  })
+  .catch(()=>{cleanup();printModal();});
 }
 $('#ovl').addEventListener('click',e=>{if(e.target.id==='ovl')$('#ovl').classList.remove('show');});
 
@@ -1268,6 +2001,7 @@ function rowToExport(x){
     'Suggested order':x.suggest||null,'Trucks':x.trucks||null,
     'Goes into (finished goods)':x.fgFull||'',
     'Floor stock (DSC)':x.floor?'Yes':'No','DSC floor current period':x.dscOH!=null?Math.round(x.dscOH):null,'DSC floor all lots':x.dscTot!=null?Math.round(x.dscTot):null,'Quick-turn applied':(x.floor||x.quickPull)?'Yes':'No',
+    'Co-man customer':x.coman?x.comanCusts.join(', '):'','Co-man MIN days':x.coman?x.cMin:null,'Co-man MAX days':x.coman?x.cMax:null,'Co-man band status':x.coman?(x.bandStatus==='below'?'BELOW MIN':(x.bandStatus==='over'?'OVER MAX':(x.bandStatus==='in'?'IN BAND':'—'))):'',
     'Stale backorder qty (ignored)':x.staleQty?Math.round(x.staleQty):null,
     'Action':plain(a.t),'Why':whyOf(x).map(plain).join(' ')
   };
@@ -1301,17 +2035,18 @@ function exportSwapTemplate(){
   const T=today();
   const rows=(state.queue||[]).filter(x=>x.swapWith||x.swapDeclined).map((x,i)=>{
     const s=x.swapWith;
+    const hist=x.declinedPOs&&x.declinedPOs.length?('DSC previously declined '+x.declinedPOs.map(d=>'PO '+d.po).join(', ')):'';
     return {
       'Swap #':'SW-'+(i+1),
-      'Existing PO':s?s.p.po:'(declined earlier)',
+      'Existing PO':s?s.p.po:(x.declinedPOs&&x.declinedPOs.length?x.declinedPOs.map(d=>d.po).join(', ')+' — DECLINED':'(declined earlier)'),
       'PO due date':s?dstr(s.p.date):'',
       'PO qty':s?Math.round(s.p.qty):null,
       'Currently for':s?(s.code+' '+s.desc):'',
       'Switch to':x.code+' '+x.desc,
       'Switch qty':s?Math.round(Math.min(s.p.qty,x.suggest)):Math.round(x.suggest),
       'Reason':lineReason(x.code)+'; the current item on the PO is fully covered without it',
-      'DSC Decision (YES / NO)':x.swapConfirmed?'YES':'',
-      'Notes':''
+      'DSC Decision (YES / NO)':x.swapConfirmed?'YES':(x.swapDeclined?'NO':''),
+      'Notes':x.swapConfirmed?'':(x.swapDeclined?(hist+'; no alternative PO qualifies — need moved to the new-PO plan'):(x.swapAlt?('ALTERNATIVE proposal — '+hist):''))
     };
   });
   if(!rows.length){toast('No swaps to send to DSC');return;}
@@ -1399,7 +2134,7 @@ function exportRows(rows,name){
   toast('Excel file downloaded');
 }
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2800);}
-$('#btnExport').onclick=()=>{const q=state.q.toLowerCase();exportRows(state.rows.filter(x=>x.active&&(!q||x.code.toLowerCase().includes(q)||x.desc.toLowerCase().includes(q))),'Can_Dashboard_All');};
+$('#btnExport').onclick=()=>{const q=state.q.toLowerCase();exportRows(state.rows.filter(x=>x.active&&matchRow(x,q)),'Can_Dashboard_All');};
 $('#btnExportAct').onclick=()=>exportRows(state.rows.filter(x=>x.active&&['out','exp','now','wk'].includes(x.cls)),'Can_Action_List');
 
 /* ---------- wiring ---------- */
@@ -1414,6 +2149,17 @@ $('#custBtn').onclick=e=>{e.stopPropagation();state.custOpen=!state.custOpen;cus
 document.addEventListener('click',e=>{if(state.custOpen&&!e.target.closest('.custwrap')){state.custOpen=false;custUI();}});
 $('#q').oninput=e=>{state.q=e.target.value;render();};
 ['setLT','setBuf','setTruck','setCov','setFLT','setMOQ','setMinSwap','setStale','setRemnant'].forEach(id=>$('#'+id).oninput=()=>compute());
+$('#setComanMin').oninput=()=>{state.comanMin=Math.max(0,+$('#setComanMin').value||0);compute();};
+$('#setMinDOS').oninput=()=>{state.gMinDOS=Math.max(0,+$('#setMinDOS').value||0);compute();};
+$('#setIdealDOS').oninput=()=>{state.gIdealDOS=Math.max(1,+$('#setIdealDOS').value||1);compute();};
+$('#setMaxDOS').oninput=()=>{state.gMaxDOS=Math.max(1,+$('#setMaxDOS').value||1);compute();};
+$('#btnBandExp').onclick=()=>exportCustomerBands();
+$('#btnBandImp').onclick=()=>$('#bandImpFile').click();
+$('#bandImpFile').onchange=e=>{if(e.target.files[0])importBands(e.target.files[0]);e.target.value='';};
+$('#setComanMax').oninput=()=>{state.comanMax=Math.max(1,+$('#setComanMax').value||1);compute();};
+$('#btnComanExp').onclick=exportComan;
+$('#btnComanImp').onclick=()=>$('#comanImpFile').click();
+$('#comanImpFile').onchange=e=>{if(e.target.files[0])importComanBands(e.target.files[0]);e.target.value='';};
 function applyFloor(){
   const codes=$('#floorList').value.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));
   state.floor=new Set(codes);
@@ -1422,12 +2168,73 @@ function applyFloor(){
 }
 $('#btnFloorApply').onclick=applyFloor;
 $('#btnHelp').onclick=()=>{$('#helpdrawer').classList.add('show');$('#helpovl').classList.add('show');};
+$('#tabBoard').onclick=()=>{state.page='board';render();};
+$('#tabPlan').onclick=()=>{state.page='plan';render();};
+$('#tabOrders').onclick=()=>{state.page='orders';render();};
 $('#helpx').onclick=$('#helpovl').onclick=()=>{$('#helpdrawer').classList.remove('show');$('#helpovl').classList.remove('show');};
 $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();});
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
+
+/* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
+function exportLiveHTML(){
+  if(!state.stock){toast('Load data first — the snapshot embeds whatever is on the board');return;}
+  const replacer=function(k,v){return (this&&this[k] instanceof Date)?{__d:this[k].toISOString()}:v;};
+  const S={savedAt:new Date().toLocaleString(),
+    stock:state.stock,pa:state.pa,po:state.po,count:state.count,dsc:state.dsc,dscTot:state.dscTot,
+    swapDec:{pair:state.swapDec.pair||{},poNo:[...(state.swapDec.poNo||[])],declinedFor:state.swapDec.declinedFor||{}},
+    forecast:state.forecast,billMap:state.billMap,fgDesc:state.fgDesc,canDesc:state.canDesc,files:state.files,
+    floor:[...state.floor],coman:[...state.coman],cust:[...state.cust],
+    comanMin:state.comanMin,comanMax:state.comanMax,gMinDOS:state.gMinDOS,gIdealDOS:state.gIdealDOS,gMaxDOS:state.gMaxDOS,
+    bandOverride:state.bandOverride,custBand:state.custBand,
+    settings:Object.fromEntries(['setLT','setBuf','setTruck','setCov','setMinDOS','setIdealDOS','setMaxDOS','setFLT','setMOQ','setMinSwap','setStale','setRemnant','setComanMin','setComanMax'].map(id=>[id,(document.getElementById(id)||{}).value])),
+    floorList:($('#floorList')||{}).value};
+  const json=JSON.stringify(S,replacer).replace(/<\//g,'<\\/');
+  const root=document.documentElement.cloneNode(true);
+  root.querySelectorAll('.pdfstage,#SNAPSHOT').forEach(n=>n.remove());
+  ['#pgrid','#planner','#orders','#uprow','#modal','#custPanel','#comanChips'].forEach(sel=>{const n=root.querySelector(sel);if(n)n.innerHTML='';});
+  ['#ovl','#helpdrawer','#helpovl'].forEach(sel=>{const n=root.querySelector(sel);if(n)n.classList.remove('show');});
+  const bd=root.querySelector('body');if(bd)bd.classList.remove('printing');
+  const src=root.outerHTML;
+  const i=src.lastIndexOf('</body>');
+  const snapTag='<scr'+'ipt id="SNAPSHOT" type="application/json">'+json+'</scr'+'ipt>\n';
+  const html='<!DOCTYPE html>\n'+src.slice(0,i)+snapTag+src.slice(i);
+  const blob=new Blob([html],{type:'text/html'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='Can_Supply_Control_LIVE_'+new Date().toISOString().slice(0,10)+'.html';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('Live HTML downloaded — fully interactive, data included');
+}
+$('#btnLiveHTML').onclick=exportLiveHTML;
+// hydrate from an embedded snapshot (when this file was shared via "Live HTML snapshot")
+(function(){
+  const hydrate=()=>{
+    const sn=document.getElementById('SNAPSHOT');
+    if(!sn)return;
+    try{
+      const revive=v=>{if(v&&typeof v==='object'){if(v.__d)return new Date(v.__d);for(const k in v)v[k]=revive(v[k]);}return v;};
+      const S=revive(JSON.parse(sn.textContent));
+      Object.assign(state,{stock:S.stock,pa:S.pa,po:S.po,count:S.count,dsc:S.dsc,dscTot:S.dscTot,
+        forecast:S.forecast||state.forecast,billMap:S.billMap||state.billMap,fgDesc:S.fgDesc||state.fgDesc,canDesc:S.canDesc||state.canDesc,
+        files:S.files||state.files,bandOverride:S.bandOverride||{},custBand:S.custBand||{},
+        comanMin:S.comanMin!=null?S.comanMin:state.comanMin,comanMax:S.comanMax!=null?S.comanMax:state.comanMax,
+        gMinDOS:S.gMinDOS!=null?S.gMinDOS:state.gMinDOS,gIdealDOS:S.gIdealDOS!=null?S.gIdealDOS:state.gIdealDOS,gMaxDOS:S.gMaxDOS!=null?S.gMaxDOS:state.gMaxDOS});
+      state.swapDec={pair:(S.swapDec&&S.swapDec.pair)||{},poNo:new Set((S.swapDec&&S.swapDec.poNo)||[]),declinedFor:(S.swapDec&&S.swapDec.declinedFor)||{}};
+      state.floor=new Set(S.floor||[]);state.coman=new Set(S.coman||[]);state.cust=new Set(S.cust||[]);
+      if(S.settings)for(const id in S.settings){const el=document.getElementById(id);if(el&&S.settings[id]!=null&&S.settings[id]!=='')el.value=S.settings[id];}
+      if(S.floorList&&$('#floorList'))$('#floorList').value=S.floorList;
+      compute();
+      toast('Shared snapshot loaded — live data as of '+(S.savedAt||'export'));
+    }catch(e){console.error('snapshot load failed',e);}
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',hydrate);
+  else hydrate();
+})();
 render();
 </script>
+<div class="balafoot" title="Built by Bala"><img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCABAAEADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD6pooooA5H4i/EfTPh9pqzXOJ72cEW9sGwXI6knso//VXhd7+0B41upWkgurS1j3bgkdqCAPTLZJrG+L+tXPib4l38TwFhaSm0iTk7UTgnHucn8afo3wn1XU1EtzNFb2x+6q8nFY1a8KfxM3o4apW+BHTaB+0P4gtpo01F7S+izucyRhHKjkgFeM46ZHUV9FadqFvqtjBfWriSC4jEiN6gjNfKOsfCSays53hu908al1Uj72O1evfs365cap4KubS5dnexuzEuf4VKggfnmijWjVV4sK+HqUWlNHrFFFFbGAUGig0AfMfibTYdH+KPiTUbxw1uJt+5Ru/1gDBePx/Kuq8OeMdB1aHybTVot0f3oypBWm3Wg2kGu6rpV/GCrSAHcOWU5Ib3znNRnw/4e0K9SQmzjLh282UKMZ7DivBxVSMpNtO59Tg6MqcFGLTjuU9a8ceHob77J/aDXFx0ZYlLYrtPgTpsWnWGvCIjbJqO4Dvt8tcHH41x9p4Y8PT2i3nlQnGfuAYfnOc++BXbfCyx8zVtT1GJSsCqtuD/AHm+UnnvjA/Ot8DOKlywT8zlzKlNwcqjWmx6VRRRXrngBRRRQB5l8adMmtrSz8S2q/8AHm3lXWB1iYjBPsG/LdXksU51yEXGreILiGAu3kx20TNtweAcd+9fRXjmyn1DwpqNvbqHkMYbYed4UglfxAIr5qvPC+o6UXm0i5zbSHeqc5UH+YrhxCgppvRnq4KVR03yq6XT+tyabVZ9Lf7FHqMl9FKm2GN0IdSTx+ea+kvBuht4d8NWOnybTOke6Zh/FI3LH35OPwr5q0jw3dNdi+uGMl0fkhX1c8D8cmvqiwhlt7K3hmffLHGqu395gACfzqsLyXfL95njvaWi56X2RPRRRXYecFFAooAqmS9aQAW0KpnlmlJJH0xXmOs+Dzo1zMCM2ckrNCw5CqTkL9RnFesVBd2VvewvDPGHRxtYGufE0FWjbqdmDxbw8+ZLTqcH4W8JW5vLbVLjG2Ft0Kd3YdCB7etd1ayXrrm4ggj5/hkLcflT7e0gtVAhjVcAL74HapqqhRVKHKiMViXXnzsKKM801+g+tbHMf//Z" alt="Bala"><span>Built by <b>Bala</b></span></div>
 </body>
 </html>
