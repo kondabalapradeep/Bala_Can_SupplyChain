@@ -146,7 +146,11 @@ header{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:
 .cm-below{background:var(--red);color:#fff}
 .cm-over{background:#fdf0dd;color:#c07d16;border:1px solid #eecfa0}
 .cm-in{background:#e5f6ec;color:var(--green);border:1px solid #bfe6cd}
-.cmtag{font-size:9px;font-weight:800;background:#e5eefc;color:#2f5da8;border:1px solid #bcd3f2;border-radius:5px;padding:1px 5px;margin-left:4px}.ptab{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;color:var(--faint,#777)}
+.cmtag{font-size:9px;font-weight:800;background:#e5eefc;color:#2f5da8;border:1px solid #bcd3f2;border-radius:5px;padding:1px 5px;margin-left:4px}
+.dscflag{font-size:9px;font-weight:800;border-radius:5px;padding:1px 6px;margin-left:5px;letter-spacing:.03em;vertical-align:middle}
+.fl-red{background:var(--red);color:#fff}
+.fl-amb{background:#fdf0dd;color:#b06d00;border:1px solid #eecfa0}
+.fl-wk{background:#fdf7e0;color:var(--amber);border:1px solid #ecdb9a}.ptab{border:1px solid var(--line,#ddd);background:#fff;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;color:var(--faint,#777)}
 .ptab.on{background:var(--ink,#222);color:#fff;border-color:var(--ink,#222)}
 .planbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0 10px}
 .planbar .now{font-size:12.5px;color:var(--ink)}
@@ -1013,7 +1017,7 @@ function compute(){
   }
   out.sort((a,b)=>a.pr-b.pr||((a.needBy??9999)-(b.needBy??9999))||b.daily-a.daily);
   const stale=[];
-  for(const x of out)for(const p of x.stalePos)stale.push({code:x.code,desc:x.desc,p,overdueDays:p.overdueDays,why:p.why});
+  for(const x of out)for(const p of x.stalePos)stale.push({code:x.code,desc:x.desc,dos:x.dos,onHand:x.onHand,daily:x.daily,p,overdueDays:p.overdueDays,why:p.why});
   stale.sort((a,b)=>(a.why===b.why?b.overdueDays-a.overdueDays:(a.why==='stale'?-1:1)));
   state.stale=stale;
   // ---- swappable POs: covered cans holding DSC slots ----
@@ -1022,10 +1026,10 @@ function compute(){
     if(!x.pos.length||!x.active)continue;
     if(['out','exp','now','wk'].includes(x.cls))continue;
     if(x.needDay==null){
-      x.pos.forEach(p=>swaps.push({code:x.code,desc:x.desc,fgTop:x.fgTop,p,early:9999,reason:'fully covered — no production need for this can in the next 180 days; this PO slot can be given up'}));
+      x.pos.forEach(p=>swaps.push({code:x.code,desc:x.desc,fgTop:x.fgTop,dos:x.dos,onHand:x.onHand,daily:x.daily,p,early:9999,reason:'fully covered — no production need for this can in the next 180 days; this PO slot can be given up'}));
     }else if(x.firstArr!=null&&x.needBy!=null&&x.firstArr<=x.needBy-14){
       const e=x.needBy-x.firstArr;
-      swaps.push({code:x.code,desc:x.desc,fgTop:x.fgTop,p:x.pos[0],early:e,reason:'arrives '+e+' days before its need-by ('+dstr(addD(T,x.needBy))+') — can be pushed out or swapped'});
+      swaps.push({code:x.code,desc:x.desc,fgTop:x.fgTop,dos:x.dos,onHand:x.onHand,daily:x.daily,p:x.pos[0],early:e,reason:'arrives '+e+' days before its need-by ('+dstr(addD(T,x.needBy))+') — can be pushed out or swapped'});
     }
   }
   swaps.sort((a,b)=>((a.p.date?a.p.date.getTime():0)-(b.p.date?b.p.date.getTime():0)));
@@ -1414,7 +1418,7 @@ function exportOrders(){
     'Qty (cans)':Math.round(o.qty),'Trucks':+o.trucks.toFixed(2),
     'Covers until':o.coversLabel?o.coversLabel:(o.coversUntil!=null?dstr(addD(T,o.coversUntil)):''),
     'Covers thru period':o.coversUntil!=null?fiscalLabelOf(addD(T,o.coversUntil)):'',
-    'On hand now':Math.round(x.onHand),'Daily use':Math.round(x.daily),
+    'On hand now':Math.round(x.onHand),'Daily use':Math.round(x.daily),'Days of supply':x.daily>0?+(x.onHand/x.daily).toFixed(1):null,
     'Aim days (ideal)':x.bIdeal,'Min days':x.bMin,'Max days':x.bMax,
     'Co-man':x.coman?'YES':'','Floor stock':x.floor?'YES':''
   }));
@@ -1425,6 +1429,23 @@ function exportOrders(){
   toast('Order schedule exported');
 }
 
+// Buffer-aware firm-PA coverage test: will on-hand + POs that actually ARRIVE IN TIME
+// (cans in-house by ship-date minus the production buffer) cover demand through each firm PA ship date?
+// Returns the earliest failing PA {riskDay, gap, cut} or null. Forward-looking — not just past-due.
+function paCoverGap(x){
+  if(!x||!x.paFirst||!x.demArr)return null;
+  const BUF=+($('#setBuf')||{}).value||7;
+  const dem=x.demArr,arr=x.arrArr,H=dem.length;
+  const paDays=[...new Set((x.drivers||[]).map(d=>d.paDay).filter(v=>v!=null&&v<H))].sort((a,b)=>a-b);
+  if(!paDays.length)return null;
+  for(const P of paDays){
+    const cut=Math.max(0,P-BUF);          // cans must be in-house by ship date − production buffer
+    let supply=x.onHand,demandThru=0;
+    for(let i=0;i<=P&&i<H;i++){demandThru+=dem[i];if(i<=cut)supply+=arr[i];}
+    if(supply<demandThru-1)return {riskDay:P,gap:Math.round(demandThru-supply),cut};
+  }
+  return null;
+}
 function render(){
   chips();
   const T=today();
@@ -1468,11 +1489,34 @@ function render(){
   const stale=(state.stale||[]).filter(s=>match(s));
   const MOQ=+$('#setMOQ').value||5000;
 
+  // ---- IMMEDIATE CALL WITH DSC: firm-PA cans the current supply plan won't cover in time ----
+  // A can is at risk when, applying the production buffer, on-hand + POs arriving in time won't
+  // cover the firm PA — whether that's a late PO (expedite), no PO at all, or an outright shortfall.
+  const dscList=base.filter(x=>x.active&&!x.swapWith).map(x=>{const g=paCoverGap(x);if(g)x.__paGap=g;return g?x:null;}).filter(Boolean)
+    .sort((a,b)=>((a.orderBy??999)-(b.orderBy??999))||(a.__paGap.riskDay-b.__paGap.riskDay)||b.__paGap.gap-a.__paGap.gap);
+  const dscFlag=x=>{
+    if(x.quickPull)return{t:'PULL from DSC floor',c:'tg-wk',f:'FLOOR PULL',fc:'fl-wk'};
+    if((x.incoming||0)<=0)return{t:'NO OPEN PO — place now',c:'tg-out',f:'NO PO ON THIS CAN',fc:'fl-red'};
+    return{t:'EXPEDITE / add PO',c:'tg-out',f:'PO NOT IN TIME',fc:'fl-red'};
+  };
+  const noPOn=dscList.filter(x=>(x.incoming||0)<=0).length,latePOn=dscList.length-noPOn-dscList.filter(x=>x.quickPull).length;
+  const dscBody=`<div class="secnote"><b>Agenda for one immediate call with DSC.</b> Applying the <b>${(+($('#setBuf')||{}).value||7)}-day production buffer</b>, these firm-PA cans won't be covered in time by current supply — because a PO arrives too late, no PO exists, or supply is simply short. This is forward-looking: a can is flagged the moment the maths says it <i>will</i> fall short, not only after a date has passed. Work the whole list on the call.</div>
+    ${dscList.map(x=>{const a=dscFlag(x);const dos=x.daily>0?(x.onHand/x.daily).toFixed(1):'∞';const g=x.__paGap;
+      return `<div class="prow" data-c="${x.code}" style="cursor:pointer">
+      <span class="tagc ${a.c}">${a.t}</span>
+      <div class="nm"><small>${x.code}</small>${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')} <span class="dscflag ${a.fc}">${a.f}</span>${x.coman?' <span class="cmtag">🤝 CO-MAN</span>':''}
+        <span class="fg">PA: ${(x.paFirst.cust||'firm order').trim()} ships ${dstr(x.paFirst.date)} · short ~${fmt(g.gap)} cans by ${dstr(addD(T,g.riskDay))} · ${(x.incoming||0)>0?`${fmt(x.incoming)} on PO arrives too late`:'no open PO'} · order by ${(x.orderBy??999)<=0?'<b style="color:var(--red)">PAST DUE</b>':dstr(addD(T,x.orderBy))}</span></div>
+      <div class="val"><b style="color:${(+dos<x.lt)?'var(--red)':'var(--ink)'}">${dos}d</b><small>supply${x.suggest>0?' · buy '+fmt(x.suggest):''}</small></div></div>`;
+    }).join('')||'<div class="emptyrow">✅ Every firm PA order is covered in time by supply and POs — no DSC call needed.</div>'}
+    ${dscList.length?'<button class="btn secexp" data-x="dsc">⬇ Export DSC call list</button>':''}`;
+
+
   // ---- summary strip ----
   const custNote=state.cust.size?`<div class="stitem s-grn" style="border-color:#b8e2cc"><b>👥</b>filtered to ${state.cust.size} customer${state.cust.size>1?'s':''}</div>`:'';
   const comanCansN=base.filter(x=>x.coman).length;
   const comanBelow=base.filter(x=>x.coman&&x.bandStatus==='below').length;
   const strip=`<div class="strip">${custNote}
+    <div class="stitem ${dscList.length?'s-red':''}" data-goto="dsc"><b>${dscList.length}</b>talk to DSC</div>
     <div class="stitem ${allPOs.length?'s-org':''}" data-goto="orders"><b>${allPOs.length}</b>POs to place</div>
     <div class="stitem ${swapActions.length?'s-grn':''}" data-goto="swaps"><b>${swapActions.length}</b>POs to swap</div>
     <div class="stitem ${comanBelow?'s-red':(comanCansN?'s-grn':'')}" data-goto="coman"><b>${comanCansN}</b>co-man cans${comanBelow?` · ${comanBelow} low`:''}</div>
@@ -1593,6 +1637,7 @@ function render(){
         <span class="sum" style="color:${p.col}">${secx.b||''}</span></div></div>`;}).join('')}</div>`;
 
   $('#pgrid').innerHTML=strip
+    +sec('dsc','📞','Talk to DSC — firm PA at risk','var(--red)',dscList.length,'cans',`current POs won't cover firm PA in time (${(+($('#setBuf')||{}).value||7)}d buffer)${noPOn?` · ${noPOn} no PO`:''}${latePOn>0?` · ${latePOn} PO too late`:''}${dscList.filter(x=>(x.orderBy??999)<=0).length?` · ${dscList.filter(x=>(x.orderBy??999)<=0).length} past due`:''}`,dscBody,dscList.length>0)
     +sec('orders','📝','POs need to be ordered','var(--orange)',allPOs.length,'POs',`${fmt(allPOs.reduce((a,p)=>a+p.total,0))} cans · ${plan.now.length} today, ${plan.week.length} next week`,ordersBody,true)
     +sec('swaps','⇄','POs need to be swapped','var(--green)',swapActions.length,'swaps',`existing POs redirected to firm PA needs${swapActions.filter(x=>x.swapAlt).length?` · ${swapActions.filter(x=>x.swapAlt).length} alternative after NO`:''}${declined.length?` · ${declined.length} ✖ declined by DSC`:''}`,swapsBody,false)
     +sec('exped','⏩','POs to expedite','var(--orange)',expedites.length,'POs','arriving after the need-by date — pull in',expBody,true)
@@ -1612,7 +1657,7 @@ function render(){
     const k=el.dataset.x;
     if(k==='plan')exportPlan();else if(k==='simple')exportSimple();else if(k==='queue')exportQueue();
     else if(k==='swaptpl')exportSwapTemplate();
-    else if(k==='swap')exportSwaps();else if(k==='stale')exportStale();else if(k==='coman')exportComan();
+    else if(k==='swap')exportSwaps();else if(k==='stale')exportStale();else if(k==='coman')exportComan();else if(k==='dsc')exportDSC();
     else if(k==='exped')exportRows(expedites,'Cans_Expedite');});
   const act=state.rows.filter(x=>x.active&&['out','exp','now'].includes(x.cls)).length;
   $('#hdMeta').textContent=`${state.rows.filter(x=>x.active).length} active cans · ${allPOs.length} POs to place · ${swapActions.length} swaps · ${act} urgent`;
@@ -2154,28 +2199,54 @@ function exportSimple(){
   XLSX.utils.book_append_sheet(wb,ws2,'POs to Swap');
   XLSX.writeFile(wb,'Can_Todays_Plan_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Excel file downloaded');
 }
+function exportDSC(){
+  const T=today();
+  const rows=(state.rows||[]).filter(x=>x.active&&!x.swapWith).map(x=>({x,g:paCoverGap(x)})).filter(o=>o.g).map(({x,g})=>{
+    const flag=x.quickPull?'FLOOR PULL':((x.incoming||0)<=0?'NO PO ON THIS CAN':'PO NOT IN TIME');
+    const act=x.quickPull?'PULL from DSC floor':((x.incoming||0)<=0?'NO OPEN PO — place now':'EXPEDITE / add PO');
+    return {
+      'Priority':(x.orderBy??999)<=0?'1 — PAST DUE':'2 — upcoming',
+      'Flag':flag,
+      'Can #':x.code,'Description':x.desc,'Goes into (FG)':x.fgTop,
+      'PA customer':(x.paFirst.cust||'firm order').trim(),'PA ship date':dstr(x.paFirst.date),
+      'On hand':Math.round(x.onHand),'Daily use':Math.round(x.daily),
+      'Days of supply':x.daily>0?+(x.onHand/x.daily).toFixed(1):null,
+      'Short by (cans)':g.gap,'Short by date':dstr(addD(T,g.riskDay)),
+      'Open PO qty':Math.round(x.incoming||0),'First PO arrival':x.firstArr!=null?dstr(addD(T,x.firstArr)):'none',
+      'Need in-house by':x.needBy!=null?dstr(addD(T,x.needBy)):'','Order by':(x.orderBy??999)<=0?'PAST DUE':dstr(addD(T,x.orderBy)),
+      'Lead time (d)':x.lt,'Qty to order':Math.round(x.suggest||0),'Trucks':+(x.trucks||0).toFixed(1),
+      'DSC floor available':x.dscOH!=null?Math.round(x.dscOH):(x.dscTot!=null?Math.round(x.dscTot):null),
+      'Co-man':x.coman?'YES':'','What to ask DSC':act
+    };
+  }).sort((a,b)=>a.Priority.localeCompare(b.Priority));
+  if(!rows.length){toast('No firm PA at risk — nothing to escalate');return;}
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:13},{wch:22},{wch:8},{wch:36},{wch:20},{wch:22},{wch:12},{wch:10},{wch:9},{wch:13},{wch:13},{wch:13},{wch:10},{wch:13},{wch:14},{wch:11},{wch:9},{wch:12},{wch:7},{wch:16},{wch:8},{wch:22}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Talk to DSC');
+  XLSX.writeFile(wb,'Can_TalkToDSC_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('DSC call list exported');
+}
 function exportStale(){
   const rows=(state.stale||[]).map(s=>({
-    'Can #':s.code,'Description':s.desc,'PO #':s.p.po,'Open qty':Math.round(s.p.qty),
+    'Can #':s.code,'Description':s.desc,'On hand':Math.round(s.onHand),'Days of supply':s.dos===Infinity?null:(s.daily>0?+(s.onHand/s.daily).toFixed(1):null),'PO #':s.p.po,'Open qty':Math.round(s.p.qty),
     'Due date':dstr(s.p.date),'Days overdue':s.overdueDays,
     'Reason':s.why==='stale'?('Stale backorder — overdue '+s.overdueDays+' days'):'Short-ship remnant — below minimum useful quantity',
     'Recommendation':s.why==='stale'?'Verify with DSC and close/clear the line in the system':'Supplier short-shipped this line — close the remnant in the system'
   }));
   if(!rows.length){toast('No stale backorders');return;}
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[{wch:8},{wch:38},{wch:10},{wch:10},{wch:10},{wch:12},{wch:70}];
+  ws['!cols']=[{wch:8},{wch:38},{wch:10},{wch:12},{wch:10},{wch:10},{wch:10},{wch:12},{wch:70}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Stale Backorders');
   XLSX.writeFile(wb,'Can_Stale_Backorders_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Excel file downloaded');
 }
 function exportSwaps(){
   const rows=(state.swaps||[]).map(s=>({
-    'Can #':s.code,'Description':s.desc,'Goes into (finished goods)':s.fgTop,
-    'PO #':s.p.po,'Open qty':Math.round(s.p.qty),'Due date':dstr(s.p.date),
+    'Can #':s.code,'Description':s.desc,'Goes into (finished goods)':s.fgTop,'On hand':Math.round(s.onHand),'Days of supply':s.dos===Infinity?null:(s.daily>0?+(s.onHand/s.daily).toFixed(1):null),'PO #':s.p.po,'Open qty':Math.round(s.p.qty),'Due date':dstr(s.p.date),
     'Why swappable':s.reason
   }));
   if(!rows.length){toast('No swappable POs');return;}
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[{wch:8},{wch:38},{wch:34},{wch:10},{wch:10},{wch:10},{wch:80}];
+  ws['!cols']=[{wch:8},{wch:38},{wch:34},{wch:10},{wch:12},{wch:10},{wch:10},{wch:10},{wch:80}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Swappable POs');
   XLSX.writeFile(wb,'Can_Swappable_POs_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Excel file downloaded');
 }
