@@ -349,6 +349,40 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .szbtn{font-size:12px;font-weight:700;padding:7px 11px;border:1px solid var(--line);background:#fff;color:var(--dim);border-radius:9px;cursor:pointer;white-space:nowrap}
 .szbtn:hover{border-color:var(--blue)}
 .szbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.nshead{display:grid;grid-template-columns:220px 1fr 180px;gap:18px;padding:8px 16px;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line);position:sticky;top:0;background:#f7fafd;z-index:2}
+.nshead .r{text-align:right}
+.nsrow{border-bottom:1px solid var(--line)}
+.nsrow:last-child{border-bottom:none}
+.nsmain{display:grid;grid-template-columns:220px 1fr 180px;gap:18px;align-items:center;padding:14px 16px;cursor:pointer}
+.nsmain:hover{background:#f7fafd}
+.nsid .nscode{font-weight:800;font-family:var(--mono);font-size:14px;color:var(--ink)}
+.nsid .nsdesc{font-size:12px;color:var(--dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px}
+.nsid .nsfg{font-size:10px;color:var(--faint);margin-top:4px;display:flex;gap:4px;flex-wrap:wrap}
+.nspolicy{min-width:0}
+.nsbar{position:relative;height:28px;background:#eef2f6;border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+.nsband{position:absolute;top:0;bottom:0;background:#dff1e7}
+.nsfill{position:absolute;top:0;bottom:0}
+.nsfill.oh.green{background:#3a9d5d}
+.nsfill.oh.amber{background:#e0952a}
+.nsfill.oh.red{background:#d64545}
+.nsfill.oo{background:repeating-linear-gradient(45deg,#7aa6dd,#7aa6dd 6px,#93b6e6 6px,#93b6e6 12px)}
+.nsmark{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed #5a6b7d;z-index:3}
+.nsmark.max{border-left-color:#b06d00}
+.nsmark span{position:absolute;top:-1px;left:3px;font-size:8px;font-weight:800;color:#41505f;background:rgba(255,255,255,.75);padding:0 2px;border-radius:3px;white-space:nowrap}
+.nsmark.max span{color:#8a5400}
+.nsnums{display:flex;gap:16px;margin-top:8px;font-size:12px;flex-wrap:wrap;align-items:center}
+.nsnums .ns-oh{font-weight:800;color:var(--ink)}
+.nsnums .ns-oh small,.nsnums .ns-oo small{color:var(--dim);font-weight:600}
+.nsnums .ns-oo{color:#3a6db0;font-weight:700}
+.nsnums .ns-short{color:var(--red);font-weight:800}
+.nsright{text-align:right}
+.nsright .nslt{font-size:11px;color:var(--faint);font-weight:700}
+.nsright .nsdue{font-size:12.5px;font-weight:800;color:var(--ink);margin-top:2px;display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.nsright .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.nsright .dot.crit{background:var(--red)}.nsright .dot.warn{background:#e0952a}.nsright .dot.po{background:#5b8fd6}.nsright .dot.full{background:#3a9d5d}
+.nsright .nsact{font-size:10px;font-weight:800;margin-top:6px;padding:3px 8px;border-radius:6px;display:inline-block;letter-spacing:.02em}
+.nsact.a-crit{background:#fde8e8;color:#b32020}.nsact.a-warn{background:#fdf4dd;color:#9a6a00}.nsact.a-po{background:#eaf2ff;color:#2f5da8}.nsact.a-ok{background:#e8f6ee;color:#177245}
+@media(max-width:720px){.nsmain,.nshead{grid-template-columns:1fr;gap:8px}.nsright{text-align:left}.nsright .nsdue{justify-content:flex-start}}
 .trackwrap{max-width:1120px;margin:0 auto;padding:6px 2px 34px}
 .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:16px}
 .tcard{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:#fff;box-shadow:0 1px 6px rgba(23,52,78,.05)}
@@ -1445,14 +1479,8 @@ function plannerData(){
       return {need,arr,eop:bal};
     });
     const eops=cells.map(c=>c.eop);
-    const peak=Math.max(x.onHand,...eops);           // highest projected on-hand across the horizon
-    const trough=Math.min(x.onHand,...eops);         // lowest (deepest shortfall)
-    const maxCans=x.daily>0?x.bMax*x.daily:Infinity; // MAX-band ceiling in cans
-    // over-ordered = the slice of incoming POs that carries the peak beyond the 60-day MAX policy (never more than what's on order)
-    const overCans=(x.daily>0&&x.incoming>0)?Math.max(0,Math.min(x.incoming,peak-maxCans)):0;
-    const overDays=x.daily>0?overCans/x.daily:0;
-    const deficit=Math.max(0,-trough);               // deepest projected shortfall in cans
-    return {x,cells,totNeed,totArr,endFinal:eops.length?eops[eops.length-1]:x.onHand,peak,overCans,overDays,deficit};
+    const oc=overCalcRow(x); // SAME over-order logic as the board — respects the Min floor
+    return {x,cells,totNeed,totArr,endFinal:eops.length?eops[eops.length-1]:x.onHand,peak:oc.peak,overCans:oc.over,overDays:oc.overDays,deficit:oc.deficit};
   }).sort((a,b)=>b.totNeed-a.totNeed); // rank cans by total production demand (highest first)
   return {T,bks,data};
 }
@@ -1717,28 +1745,30 @@ function coverageData(){
   const src=state.rows.filter(x=>x.active&&x.totDem>1&&matchRow(x,q)&&(!state.cust.size||x.custMatch));
   const items=src.map(x=>{
     const dem=x.demArr,arr=x.arrArr,H=dem.length;
+    const safety=x.daily>0?x.bMin*x.daily:0;           // Min-days floor in cans — coverage is measured ABOVE this, not to zero
     let cumD=0,cumA=0,stockDay=null,firstGap=null,lastDay=0,totalDemand=0;
     for(let d=0;d<H;d++){
       cumD+=dem[d];cumA+=arr[d];
       if(dem[d]>0){lastDay=d;totalDemand=cumD;}
-      if(cumD<=x.onHand)stockDay=d;
-      if(firstGap==null&&(x.onHand+cumA-cumD)<-0.5)firstGap=d;
+      if((x.onHand-cumD)>=safety)stockDay=d;                       // on-hand alone still holds the Min floor
+      if(firstGap==null&&(x.onHand+cumA-cumD)<safety-0.5)firstGap=d; // stock+POs would drop below the Min floor
     }
     const totalPO=x.incoming||0;
-    const gapQty=Math.max(0,Math.round(totalDemand-x.onHand-totalPO));
+    // cans needed to cover all demand AND still finish at the Min floor
+    const gapQty=Math.max(0,Math.round(totalDemand+safety-x.onHand-totalPO));
     const coveredTillPO=firstGap!=null?Math.max(0,firstGap-1):lastDay;
-    const lateCover=firstGap!=null&&gapQty<=0;
-    let status;
-    if(firstGap==null&&totalDemand<=x.onHand)status='full';
-    else if(firstGap==null)status='po';
-    else if(lateCover)status='expedite';
-    else status='critical';
+    // status = the SAME urgency the board assigns (based on when the order must be PLACED), so this page never over-flags
+    let status;const c=x.cls;
+    if(c==='out'||c==='now'||c==='wk')status='critical';   // must order now / this week
+    else if(c==='exp')status='expedite';                    // open PO arrives too late
+    else if(c==='nx'||c==='up')status='soon';               // order due in 2–4 weeks
+    else status='covered';                                   // 'ok' — plan later / covered
     return {x,onHand:x.onHand,totalDemand:Math.round(totalDemand),totalPO:Math.round(totalPO),
       stockDay,coveredTillPO,firstGap,lastDay,gapQty,status,
       poList:(x.pos||[]).map(p=>({po:p.po,qty:p.qty,day:p.date?Math.round((p.date-T)/DAY):null,date:p.date})),
       drivers:(x.drivers||[]).slice().sort((a,b)=>(b.rate||0)-(a.rate||0))};
   });
-  const rank={critical:0,expedite:1,po:2,full:3};
+  const rank={critical:0,expedite:1,soon:2,covered:3};
   items.sort((a,b)=>rank[a.status]-rank[b.status]||((a.firstGap??a.lastDay)-(b.firstGap??b.lastDay))||b.totalDemand-a.totalDemand);
   items.forEach((it,i)=>it.rank=i+1);
   let tmax=1;items.forEach(it=>{tmax=Math.max(tmax,it.lastDay);it.poList.forEach(p=>{if(p.day!=null)tmax=Math.max(tmax,p.day);});});
@@ -1757,51 +1787,67 @@ function renderCoverage(){
     <div class="ckpi"><div class="cn">${items.length}</div><div class="cl">cans with demand</div></div>
     <div class="ckpi crit"><div class="cn">${cnt('critical')}</div><div class="cl">place PO now</div></div>
     <div class="ckpi warn"><div class="cn">${cnt('expedite')}</div><div class="cl">expedite open PO</div></div>
-    <div class="ckpi ok"><div class="cn">${cnt('po')+cnt('full')}</div><div class="cl">fully covered</div></div>
-    <div class="ckpi crit"><div class="cn">${kfmt(gapTotal)}</div><div class="cl">total can gap</div></div>
-    <div class="ckpi"><div class="cn" style="font-size:19px">${firstOut?dstr(addD(T,firstOut.firstGap)):'—'}</div><div class="cl">first stock-out</div></div>
+    <div class="ckpi"><div class="cn">${cnt('soon')}</div><div class="cl">order soon (2–4 wk)</div></div>
+    <div class="ckpi ok"><div class="cn">${cnt('covered')}</div><div class="cl">covered</div></div>
+    <div class="ckpi"><div class="cn" style="font-size:19px">${firstOut?dstr(addD(T,firstOut.firstGap)):'—'}</div><div class="cl">first below Min days</div></div>
   </div>`;
-  const F=[['ALL','All'],['critical','Place PO'],['expedite','Expedite'],['po','PO covered'],['full','Stock covered']];
+  const F=[['ALL','All'],['critical','Place PO'],['expedite','Expedite'],['soon','Order soon'],['covered','Covered']];
   const chips=`<div class="covchips">${F.map(([k,l])=>`<button class="covchip ${flt===k?'on':''}" data-f="${k}">${l}${k!=='ALL'?' ('+cnt(k)+')':''}</button>`).join('')}</div>`;
   const shown=items.filter(i=>flt==='ALL'||i.status===flt);
-  const actTxt=it=>it.status==='critical'?('PLACE PO ≥ '+fmt(Math.ceil(it.gapQty/1000)*1000)+' by '+dstr(addD(T,it.firstGap))+(it.totalPO>0?' + expedite PO':'')):
-    it.status==='expedite'?('EXPEDITE PO to before '+dstr(addD(T,it.firstGap))):
-    it.status==='po'?'Covered by open PO — confirm delivery':'Stock covers — no action';
-  const actCls={critical:'a-crit',expedite:'a-warn',po:'a-po',full:'a-ok'};
+  const oby=it=>it.x.orderBy!=null?dstr(addD(T,Math.max(0,it.x.orderBy))):(it.firstGap!=null?dstr(addD(T,it.firstGap)):'—');
+  const actTxt=it=>it.status==='critical'?(it.x.cls==='out'?'STOCKED OUT — order now':('PLACE PO by '+oby(it))):
+    it.status==='expedite'?('EXPEDITE PO before '+(it.firstGap!=null?dstr(addD(T,it.firstGap)):oby(it))):
+    it.status==='soon'?('ORDER by '+oby(it)):'Covered — no action';
+  const actCls={critical:'a-crit',expedite:'a-warn',soon:'a-po',covered:'a-ok'};
   const rows=shown.map((it,idx)=>{
-    const x=it.x;
-    const stockEnd=it.stockDay!=null?X(it.stockDay):0;
-    const poEnd=X(it.coveredTillPO);
-    const demEnd=X(it.lastDay);
-    const seg=`<div class="cseg cs-stock" style="left:0;width:${stockEnd}%"></div>
-      ${poEnd>stockEnd?`<div class="cseg cs-po" style="left:${stockEnd}%;width:${poEnd-stockEnd}%"></div>`:''}
-      ${it.firstGap!=null?`<div class="cseg cs-gap" style="left:${poEnd}%;width:${Math.max(1.5,demEnd-poEnd)}%"></div>`:''}`;
-    const dots=it.poList.filter(p=>p.day!=null).map(p=>`<div class="cdot ${it.firstGap!=null&&p.day>it.firstGap?'late':''}" style="left:${X(p.day)}%" title="PO ${p.po} · ${fmt(p.qty)} · due ${dstr(p.date)}"></div>`).join('');
-    const covered=it.firstGap!=null?`covered till <b>${dstr(addD(T,it.coveredTillPO))}</b> · gap from ${dstr(addD(T,it.firstGap))}`:`covered through <b>${dstr(addD(T,it.lastDay))}</b> ✓`;
-    const fgs=it.drivers.slice(0,4).map(dd=>`<span class="covfg">${dd.fg}</span>`).join('')+(it.drivers.length>4?`<span class="covfg more">+${it.drivers.length-4}</span>`:'');
-    return `<div class="covrow ${it.status}" data-idx="${idx}">
-      <div class="covmain" data-c="${x.code}">
-        <div class="crank">${it.rank}<small>rank</small></div>
-        <div class="cid"><div class="ccode">${x.code}${x.coman?' <span class="cmtag">🤝</span>':''}</div><div class="cdesc">${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</div>
-          <div class="coh">OH ${fmt(it.onHand)} · need ${fmt(it.totalDemand)} · PO ${fmt(it.totalPO)}${x.paFirst?' · <b style="color:#2f5da8">firm PA</b>':' · forecast'}</div>
-          <div class="cfgs">${fgs}</div></div>
-        <div class="crunway"><div class="ctrack">${seg}</div>${dots}
-          <div class="ctoday" style="left:${X(0)}%"></div><div class="clab" style="left:${X(0)}%">today</div>
-          <div class="clab" style="left:${Math.min(96,demEnd)}%">${dstr(addD(T,it.lastDay))}</div></div>
-        <div class="cverdict"><div class="ctill">${covered}</div><span class="cact ${actCls[it.status]}">${actTxt(it)}</span></div>
+    const x=it.x, daily=x.daily||0;
+    const ohDays=daily>0?it.onHand/daily:0, ooDays=daily>0?it.totalPO/daily:0;
+    const posDays=ohDays+ooDays;
+    const scale=Math.max(x.bMax||60, posDays, 1);          // bar scaled so Max marker and any overflow both show
+    const pct=v=>Math.max(0,Math.min(100,v/scale*100));
+    const ohW=pct(ohDays), ooW=Math.max(0,pct(ohDays+ooDays)-pct(ohDays));
+    const minL=pct(x.bMin||0), maxL=pct(x.bMax||60), bandW=Math.max(0,maxL-minL);
+    const short=Math.max(0,Math.round((x.bMin*daily)-it.onHand));      // cans on hand below the Min floor
+    const ohColor=it.onHand<=0?'red':(ohDays<(x.bMin||0)?'amber':'green');
+    const dotCls={critical:'crit',expedite:'warn',soon:'po',covered:'full'}[it.status];
+    const dueLabel=it.status==='covered'?'covered':(it.x.orderBy!=null?dstr(addD(T,Math.max(0,it.x.orderBy))):(it.firstGap!=null?dstr(addD(T,it.firstGap)):'—'));
+    const fgs=it.drivers.slice(0,3).map(dd=>`<span class="covfg">${dd.fg}</span>`).join('')+(it.drivers.length>3?`<span class="covfg more">+${it.drivers.length-3}</span>`:'');
+    return `<div class="nsrow" data-idx="${idx}">
+      <div class="nsmain" data-c="${x.code}">
+        <div class="nsid"><div class="nscode">${x.code}${x.coman?' 🤝':''}</div><div class="nsdesc" title="${x.desc}">${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</div><div class="nsfg">${fgs}</div></div>
+        <div class="nspolicy">
+          <div class="nsbar">
+            ${bandW>0?`<div class="nsband" style="left:${minL}%;width:${bandW}%"></div>`:''}
+            <div class="nsfill oh ${ohColor}" style="width:${ohW}%"></div>
+            ${ooW>0?`<div class="nsfill oo" style="left:${ohW}%;width:${ooW}%"></div>`:''}
+            <div class="nsmark min" style="left:${minL}%"><span>Min ${x.bMin}d</span></div>
+            <div class="nsmark max" style="left:${maxL}%"><span>Max ${x.bMax}d</span></div>
+          </div>
+          <div class="nsnums">
+            <span class="ns-oh">🏭 ${fmt(it.onHand)} on hand <small>· ${ohDays.toFixed(0)}d</small></span>
+            <span class="ns-oo">🚚 ${fmt(it.totalPO)} on order${ooDays>0?` <small>· ${ooDays.toFixed(0)}d</small>`:''}</span>
+            ${short>0?`<span class="ns-short">▼ ${fmt(short)} below Min</span>`:''}
+          </div>
+        </div>
+        <div class="nsright">
+          <div class="nslt">LT ${x.lt}d</div>
+          <div class="nsdue"><span class="dot ${dotCls}"></span>${dueLabel}</div>
+          <div class="nsact ${actCls[it.status]}">${actTxt(it)}</div>
+        </div>
       </div>
       <div class="covdetail" data-det="${idx}"></div>
     </div>`;
   }).join('')||'<div class="emptyrow">Nothing in this view.</div>';
-  el.innerHTML=`<div class="planbar"><span class="now"><b>Coverage runway</b> — every can with demand, ranked by earliest stock-out. Each bar shows how far <span style="color:#2f7a3f">stock</span> covers, then <span style="color:#b06d00">open POs</span>, then the <span style="color:var(--red)">gap</span>. Dots are PO arrivals (red = lands after the gap). Same live data and rules as the board.</span>
+  const covHead=`<div class="nshead"><div>Can</div><div>Position vs policy — 🟩 on hand · 🟦 on order · Min→Max band</div><div class="r">Lead · order by</div></div>`;
+  el.innerHTML=`<div class="planbar"><span class="now"><b>Coverage runway</b> — where each can sits <b>right now inside its Min→Max policy band</b>. The <span style="color:#2f7a3f">green</span> bar is what you hold, the <span style="color:#3a6db0">blue stripes</span> are what's on order, and the dashed lines are your <b>Min</b> and <b>Max</b> days. Green = in band, amber = below Min, red = empty. Same live data and Min-days rule as the board.</span>
       <button class="btn ghost" id="covExp" style="margin-left:auto">⬇ Export coverage</button></div>
     ${kpis}${chips}
-    <div class="covwrap">${rows}</div>`;
+    <div class="covwrap">${covHead}${rows}</div>`;
   el.querySelectorAll('.covchip').forEach(b=>b.onclick=()=>{state.covFilter=b.dataset.f;renderCoverage();});
   $('#covExp').onclick=exportCoverage;
-  el.querySelectorAll('.covmain').forEach(m=>m.onclick=e=>{
+  el.querySelectorAll('.nsmain').forEach(m=>m.onclick=e=>{
     if(e.metaKey||e.ctrlKey){openModal(m.dataset.c);return;}
-    const row=m.closest('.covrow'),idx=+row.dataset.idx,det=row.querySelector('.covdetail');
+    const row=m.closest('.nsrow'),idx=+row.dataset.idx,det=row.querySelector('.covdetail');
     if(row.classList.toggle('open')){det.innerHTML=covDetail(shown[idx],T);}
   });
   $('#hdMeta').textContent=`Coverage · ${items.length} cans · ${cnt('critical')} place PO, ${cnt('expedite')} expedite`;
@@ -1818,14 +1864,14 @@ function covDetail(it,T){
 function exportCoverage(){
   const {T,items}=coverageData();
   if(!items.length){toast('No coverage data');return;}
-  const statusName={critical:'PLACE PO NOW',expedite:'EXPEDITE OPEN PO',po:'Covered by PO',full:'Stock covers'};
+  const statusName={critical:'PLACE PO NOW',expedite:'EXPEDITE OPEN PO',soon:'ORDER SOON (2-4 wk)',covered:'Covered'};
   const rows=items.map(it=>({
-    'Rank':it.rank,'Priority':it.status==='critical'?'1 — place PO':(it.status==='expedite'?'2 — expedite':(it.status==='po'?'3 — PO covered':'4 — stock covered')),
+    'Rank':it.rank,'Priority':it.status==='critical'?'1 — place PO':(it.status==='expedite'?'2 — expedite':(it.status==='soon'?'3 — order soon':'4 — covered')),
     'Status':statusName[it.status],'Can #':it.x.code,'Description':it.x.desc,
     'On hand':it.onHand,'Days of supply':it.x.daily>0?+(it.onHand/it.x.daily).toFixed(1):null,
     'Total demand (180d)':it.totalDemand,'Open PO qty':it.totalPO,'Gap (cans)':it.gapQty,
-    'Covered till':it.firstGap!=null?dstr(addD(T,it.coveredTillPO)):dstr(addD(T,it.lastDay)),
-    'Stock-out (gap) date':it.firstGap!=null?dstr(addD(T,it.firstGap)):'',
+    'Covered till (holds Min)':it.firstGap!=null?dstr(addD(T,it.coveredTillPO)):dstr(addD(T,it.lastDay)),
+    'Below-Min date':it.firstGap!=null?dstr(addD(T,it.firstGap)):'',
     'Demand basis':it.x.paFirst?'Firm PA':'Forecast','PA customer':it.x.paFirst?(it.x.paFirst.cust||'').trim():'','PA ship date':it.x.paFirst?dstr(it.x.paFirst.date):'',
     'Goes into (FG)':it.x.fgFull||'',
     'Action':it.status==='critical'?('PLACE PO ≥ '+(Math.ceil(it.gapQty/1000)*1000)+' by '+dstr(addD(T,it.firstGap))):(it.status==='expedite'?('EXPEDITE PO before '+dstr(addD(T,it.firstGap))):statusName[it.status])
@@ -2902,23 +2948,23 @@ function exportTracker(){
   if(ov.length){const ws4=XLSX.utils.json_to_sheet(ov);ws4['!cols']=[{wch:12},{wch:9},{wch:16},{wch:50}];XLSX.utils.book_append_sheet(wb,ws4,'Daily Over-orders');}
   XLSX.writeFile(wb,'Can_Daily_Tracker_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Tracker exported');
 }
+function overCalcRow(x){
+  // Over-ordered = the incoming PO you can cancel and still stay within [Min, Max] all the way through the horizon.
+  // If the can dips to/below Min later, its POs are NEEDED, so nothing is flagged removable. Short = below the Min floor.
+  if(!(x.daily>0)||!x.demArr)return {over:0,overDays:0,deficit:0,peak:x.onHand||0,trough:x.onHand||0};
+  let bal=x.onHand,peak=x.onHand,trough=x.onHand;const H=x.demArr.length;
+  for(let i=0;i<H;i++){bal+=(x.arrArr[i]||0)-(x.demArr[i]||0);if(bal>peak)peak=bal;if(bal<trough)trough=bal;}
+  const maxCans=x.bMax*x.daily, minCans=x.bMin*x.daily;
+  const excess=Math.max(0,peak-maxCans);
+  const headroom=Math.max(0,trough-minCans);
+  const over=x.incoming>0?Math.max(0,Math.min(x.incoming,excess,headroom)):0;
+  return {over,overDays:x.daily>0?over/x.daily:0,deficit:Math.max(0,minCans-trough),peak,trough};
+}
 function overorderPlan(){
   // Same over-order + swap logic the board card uses, recomputed from current rows/filters so the export always matches the screen.
   const q=(state.q||'').toLowerCase();
   const base=state.rows.filter(x=>x.active&&matchRow(x,q)&&(!state.cust.size||x.custMatch));
-  const overCalc=x=>{
-    if(!(x.daily>0)||!x.demArr)return {over:0,overDays:0,deficit:0};
-    let bal=x.onHand,peak=x.onHand,trough=x.onHand;const H=x.demArr.length;
-    for(let i=0;i<H;i++){bal+=(x.arrArr[i]||0)-(x.demArr[i]||0);if(bal>peak)peak=bal;if(bal<trough)trough=bal;}
-    const maxCans=x.bMax*x.daily, minCans=x.bMin*x.daily;
-    const excess=Math.max(0,peak-maxCans);     // how far the peak sits above the MAX band
-    const headroom=Math.max(0,trough-minCans); // how much can be removed before the trough would hit the MIN floor
-    // over-ordered = the incoming PO you can cancel and still stay within [Min, Max] all the way through.
-    // If the can dips to/below Min later (headroom 0), its POs are NEEDED — nothing is flagged as removable.
-    const over=x.incoming>0?Math.max(0,Math.min(x.incoming,excess,headroom)):0;
-    return {over,overDays:x.daily>0?over/x.daily:0,deficit:Math.max(0,minCans-trough)}; // short = below the MIN floor
-  };
-  const overRows=base.map(x=>({x,...overCalc(x)}));
+  const overRows=base.map(x=>({x,...overCalcRow(x)}));
   const donors=overRows.filter(o=>o.overDays>=1&&o.over>0).sort((a,b)=>b.over-a.over);
   const recips=overRows.filter(o=>o.deficit>0).sort((a,b)=>b.deficit-a.deficit).map(o=>({o,rem:o.deficit}));
   const plan=donors.map(o=>{
