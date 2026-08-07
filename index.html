@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- saved from url=(0065)file:///C:/Users/Bala/Downloads/Alamance_Can_Dashboard_13_33.html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alamance Foods — Can Supply Control</title>
-<script src="./index_files/xlsx.full.min.js.download"></script>
-<script src="./index_files/html2canvas.min.js.download"></script>
-<script src="./index_files/jspdf.umd.min.js.download"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg:#f3f8fc; --bg2:#eaf3fa; --panel:#ffffff; --panel2:#f2f8fd; --line:#dbe8f2; --line2:#c2d9ea;
@@ -176,6 +176,24 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .plantb tr.tot td{background:#fbfbf4;font-weight:800;border-top:2px solid #ddd;position:sticky;bottom:0;z-index:4}
 .plantb tbody tr:hover td{background:#fcfcff}
 .plantb tbody tr:hover td.cur{background:#e6f0ff!important}
+.plantb td.ctot,.plantb th.ctot{position:sticky;right:0;background:#eef5ff;z-index:4;border-left:2px solid var(--blue);text-align:right;min-width:120px}
+.plantb thead th.ctot{z-index:7;background:#e2edff;color:var(--ink)}
+.plantb tr.tot td.ctot{background:#e6eefb;z-index:5}
+.plantb .rk{display:inline-block;font-size:9px;font-weight:800;color:#fff;background:var(--blue,#3f7ac0);border-radius:5px;padding:1px 5px;margin-right:5px;vertical-align:1px}
+.plantb .sub.over{color:#b06d00;font-weight:800}
+.ovpanel{margin-top:14px;border:1px solid #eecfa0;border-radius:12px;background:#fffdf8;overflow:hidden}
+.ovpanel .ovh{padding:11px 14px;background:#fdf6e9;font-weight:800;color:#8a5a00;border-bottom:1px solid #eecfa0;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.ovpanel .ovh .cnt{font-size:11px;font-weight:700;color:#a06d00;background:#fbe9c9;border-radius:8px;padding:2px 8px}
+.ovpanel .ovnote{font-size:11.5px;color:var(--dim);font-weight:500;margin-left:auto}
+.ovrow{padding:11px 14px;border-bottom:1px solid #f2e6cf}
+.ovrow:last-child{border-bottom:none}
+.ovrow .ov1{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+.ovrow .ovcan{font-weight:800;color:var(--ink)}.ovrow .ovcan .mono{font-family:var(--mono);margin-right:5px}
+.ovrow .ovamt{color:#b06d00;font-weight:800;white-space:nowrap}
+.ovrow .ovpos{font-size:11px;color:var(--dim);margin-top:4px}
+.ovrow .ovswap{font-size:12.5px;margin-top:6px;color:var(--ink);padding:6px 9px;background:#eef5ff;border-left:3px solid var(--blue);border-radius:6px}
+.ovrow .ovswap b{color:var(--blue)}
+.ovrow .ovcancel{font-size:12.5px;margin-top:6px;color:#3a7d4d;font-weight:600;padding:6px 9px;background:#eef8f0;border-left:3px solid var(--green);border-radius:6px}
 /* order schedule page */
 .ordtb{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
 .ordtb th,.ordtb td{padding:7px 11px;border-bottom:1px solid #eee;white-space:nowrap;text-align:left}
@@ -326,6 +344,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .stat-dos.good{background:#e5f6ec;border-color:#a9dcbd;color:#177245}
 .stat-dos.warn{background:#fdf4dd;border-color:#eed79a;color:#9a6a00}
 .stat-dos.bad{background:#fde8e8;border-color:#f0b6b6;color:#b32020}
+.stat-floor{background:#e8f6ee;border-color:#a9dcbd;color:#177245}
 @media(max-width:560px){.statstrip{grid-template-columns:1fr}}
 .act{font-size:13px;font-weight:800;padding:10px 14px;border-radius:9px;line-height:1.45}
 .a-red{background:var(--red-bg);color:var(--red);border:1px solid #f0b6b6}
@@ -445,7 +464,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 <div class="app">
 <aside class="sidebar">
   <div class="sb-brand">
-    <div class="logo"><img id="brandLogo" alt="Alamance Foods" src="data:image/png;base64,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"></div>
+    <div class="logo"><img id="brandLogo" alt="Alamance Foods"></div>
     <div class="sb-title"><b>Can Supply Control</b><span>Raw Material · DSC</span></div>
   </div>
   <div class="sb-lbl">Views</div>
@@ -462,7 +481,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <button class="btn ghost" id="btnLiveHTML" title="Download this whole dashboard as one HTML file with all current data inside — fully interactive for whoever you share it with">🌐 Live HTML snapshot</button>
   </div>
   <div class="sb-spacer"></div>
-  <div class="sb-meta"><b id="hdToday">Friday, August 7, 2026</b><span id="hdMeta">no data loaded</span><span id="hdBuild" style="display:block;margin-top:5px;color:var(--faint);font-size:9px;letter-spacing:.05em">BUILD v14 · truckfill-95k · 2026-08-07</span></div>
+  <div class="sb-meta"><b id="hdToday"></b><span id="hdMeta">no data loaded</span><span id="hdBuild" style="display:block;margin-top:5px;color:var(--faint);font-size:9px;letter-spacing:.05em"></span></div>
   <div class="sb-bottom">
     <button class="btn ghost" id="btnHelp">❓ Help &amp; rules</button>
   </div>
@@ -476,47 +495,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
       <div class="dzs">Stock on Hand · Live PA · Purchase Orders · Can Inv Count · DSC Floor Stock · Forecast · BOM — or click a tile below to add or replace one file. ✕ on a tile removes it.</div>
     </div>
   </div>
-  <div class="uprow" id="uprow"><div class="up  req" data-slot="stock">
-      <div class="ic">📦</div>
-      <div class="t"><b>Stock on Hand</b><span>NetStock export</span></div>
-      <div class="badge">REQUIRED</div>
-      
-      <input type="file" accept=".xlsx,.xls,.xlsm" multiple=""></div><div class="up  req" data-slot="pa">
-      <div class="ic">🚚</div>
-      <div class="t"><b>Live PA</b><span>sales orders &amp; FG stock</span></div>
-      <div class="badge">REQUIRED</div>
-      
-      <input type="file" accept=".xlsx,.xls,.xlsm" multiple=""></div><div class="up  " data-slot="po">
-      <div class="ic">🧾</div>
-      <div class="t"><b>Purchase Orders</b><span>open supply</span></div>
-      <div class="badge">UPLOAD</div>
-      
-      <input type="file" accept=".xlsx,.xls,.xlsm" multiple=""></div><div class="up on " data-slot="count">
-      <div class="ic">🔢</div>
-      <div class="t"><b>Can Inv Count</b><span>built-in 8/4 count · drop file to update</span></div>
-      <div class="badge">✓ BUILT-IN</div>
-      
-      <input type="file" accept=".xlsx,.xls,.xlsm" multiple=""></div><div class="up  " data-slot="dsc">
-      <div class="ic">🏭</div>
-      <div class="t"><b>DSC Floor Stock</b><span>DSC on-hand per can · optional</span></div>
-      <div class="badge">UPLOAD</div>
-      
-      <input type="file" accept=".xlsx,.xls,.xlsm" multiple=""></div><div class="up  " data-slot="swapdec">
-      <div class="ic">✅</div>
-      <div class="t"><b>Swap Decisions</b><span>DSC yes/no template · re-upload</span></div>
-      <div class="badge">UPLOAD</div>
-      
-      <input type="file" accept=".xlsx,.xls,.xlsm" multiple=""></div><div class="up on " data-slot="forecast">
-      <div class="ic">📈</div>
-      <div class="t"><b>Forecast</b><span>built-in · optional update</span></div>
-      <div class="badge">✓ BUILT-IN</div>
-      
-      <input type="file" accept=".xlsx,.xls,.xlsm" multiple=""></div><div class="up on " data-slot="bom">
-      <div class="ic">🧩</div>
-      <div class="t"><b>BOM</b><span>built-in · optional update</span></div>
-      <div class="badge">✓ BUILT-IN</div>
-      
-      <input type="file" accept=".xlsx,.xls,.xlsm" multiple=""></div></div>
+  <div class="uprow" id="uprow"></div>
   <div class="upnote">Click a tile or drop the file straight onto it — the board recalculates automatically after every upload. Forecast, BOM &amp; Can Inv Count are built in; replace them only when they change. Everything runs locally.</div>
 
   <div class="bar">
@@ -534,25 +513,25 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <div class="set">Min swap qty <input id="setMinSwap" type="number" value="20000"></div>
     <div class="set">Ignore POs overdue &gt; <input id="setStale" type="number" value="3">d</div>
     <div class="set">Ignore PO remnants &lt; <input id="setRemnant" type="number" value="5000"></div>
-    <div class="set" title="DSC has committed the POs due on or before this date — they are frozen and won&#39;t be offered for swaps or adjustments">🔒 DSC locked thru <input id="setDscLock" type="date" style="width:140px"></div>
+    <div class="set" title="DSC has committed the POs due on or before this date — they are frozen and won't be offered for swaps or adjustments">🔒 DSC locked thru <input id="setDscLock" type="date" style="width:140px"></div>
     <div class="set" title="How many full trucks DSC can deliver per day — POs are spread across days so no single day exceeds this">🚚 DSC trucks/day <input id="setDscCap" type="number" value="3" style="width:56px"></div>
-    <div class="set" id="hmPeriod" style="color:var(--faint)">Period 8 · today Aug 7</div>
+    <div class="set" id="hmPeriod" style="color:var(--faint)"></div>
   </div>
-  <div class="bar floorbar" style="display: flex;">
+  <div class="bar floorbar">
     <div class="set" style="font-weight:800;color:var(--ink)">🏭 Floor stock @ DSC</div>
     <div class="set">quick-turn lead <input id="setFLT" type="number" value="7">d</div>
     <input id="floorList" class="floorinput" title="Comma-separated can codes DSC keeps as floor stock" value="12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020">
     <button class="btn ghost" id="btnFloorApply" style="padding:7px 13px">Apply</button>
-    <div class="set" id="floorCount">26 cans on quick-turn</div>
+    <div class="set" id="floorCount"></div>
     <div class="set" style="margin-left:auto;font-weight:700;color:#2f5da8">📋 Customer days-of-supply policy</div>
     <button class="btn" id="btnBandExp" style="padding:7px 13px">⬇ Export policy</button>
     <button class="btn ghost" id="btnBandImp" style="padding:7px 13px">⬆ Import policy</button>
     <input type="file" id="bandImpFile" accept=".xlsx,.xls,.xlsm" style="display:none">
   </div>
-  <div class="bar comanbar" style="display: flex;">
+  <div class="bar comanbar">
     <div class="set" style="font-weight:800;color:var(--ink)">🤝 Co-manufacturing <span style="font-weight:500;color:var(--faint)">— tight low-inventory band (order a week ahead, hold min→max days only)</span></div>
-    <div class="cmchips" id="comanChips"><span class="cmchip">Conagra<button data-cm="Conagra" title="remove">✕</button></span><span class="cmchip">Rubix<button data-cm="Rubix" title="remove">✕</button></span><span class="cmchip">Danone<button data-cm="Danone" title="remove">✕</button></span><span class="cmchip">Nestle<button data-cm="Nestle" title="remove">✕</button></span></div>
-    <select id="comanAdd" class="cmadd"><option value="">+ add customer…</option><option value="__type__">＋ type a name…</option></select>
+    <div class="cmchips" id="comanChips"></div>
+    <select id="comanAdd" class="cmadd"><option value="">+ add customer…</option></select>
     <div class="set">Min on-hand <input id="setComanMin" type="number" value="7" min="0">d</div>
     <div class="set">Max on-hand <input id="setComanMax" type="number" value="14" min="1">d</div>
     <button class="btn" id="btnComanExp" style="padding:7px 13px">⬇ Co-man plan</button>
@@ -561,11 +540,11 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <div class="set" id="comanCount" style="color:var(--faint)"></div>
   </div>
 
-  <div class="pgrid" id="pgrid" style="display: flex;"></div>
+  <div class="pgrid" id="pgrid"></div>
   <div id="planner" style="display:none"></div>
   <div id="orders" style="display:none"></div>
   <div id="coverage" style="display:none"></div>
-  <div class="empty" id="empty" style="display: block;"><b>Waiting for data</b>Upload Stock on Hand and Live PA to light up the board.</div>
+  <div class="empty" id="empty"><b>Waiting for data</b>Upload Stock on Hand and Live PA to light up the board.</div>
 </div>
 </main>
 </div>
@@ -672,8 +651,8 @@ function matchRow(x,q){
 const state={
   stock:null,pa:null,po:null,count:null,
   forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,
-  files:{stock:null,pa:null,po:null,count:EMB.count?'built-in':null,dsc:null,swapdec:null,forecast:'built-in',bom:'built-in'},count:EMB.count||null,
-  rows:[],q:'',expanded:{},sec:{orders:true,swaps:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},swaps:[],queue:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
+  files:{stock:null,pa:null,po:null,count:EMB.count?'built-in':null,dsc:null,swapdec:null,expdec:null,forecast:'built-in',bom:'built-in'},count:EMB.count||null,
+  rows:[],q:'',expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
 };
 
@@ -713,6 +692,7 @@ function detect(wb){
   for(const sn of wb.SheetNames){
     const r0=rws(wb.Sheets[sn]);
     const h=(r0[0]||[]).map(x=>String(x||'').trim().toLowerCase());
+    if(h.some(x=>x.includes('expedite'))&&h.some(x=>x.includes('new')&&(x.includes('arriv')||x.includes('date'))))return 'expdec';
     if(h.some(x=>x.includes('decision'))&&h.some(x=>x.includes('existing po')||x.includes('switch to')))return 'swapdec';
   }
   if(sniffDSCPivot(wb))return 'dsc';
@@ -754,23 +734,22 @@ function parseSwapDec(wb){
 function sniffDSCPivot(wb){
   for(const sn of wb.SheetNames){
     const r=rws(wb.Sheets[sn]);
-    for(let hr=0;hr<Math.min(6,r.length);hr++){
+    for(let hr=0;hr<Math.min(8,r.length);hr++){
       const row=(r[hr]||[]).map(x=>String(x||'').trim());
       const rl=row.findIndex(x=>/row labels/i.test(x));
       if(rl<0)continue;
-      const yearRow=r[hr-1]||[],monRow=r[hr]||[];
-      const T=today();const Y=T.getFullYear(),M=T.getMonth()+1;
-      let cCur=-1,cTot=-1;
-      for(let c=0;c<Math.max(yearRow.length,monRow.length);c++){
-        const yv=Math.round(+yearRow[c])||0,mv=Math.round(+monRow[c])||0;
-        if(yv===Y&&mv===M)cCur=c;
-        if(/grand total/i.test(String(yearRow[c]||''))||/grand total/i.test(String((r[hr-2]||[])[c]||'')))cTot=c;
+      // scan a small band of header rows for the Grand Total, Max and Min columns
+      const band=[r[hr-2]||[],r[hr-1]||[],r[hr]||[],r[hr+1]||[]];
+      const wide=Math.max(0,...band.map(a=>a.length));
+      let cGrand=-1,cMax=-1,cMin=-1;
+      for(let c=0;c<wide;c++)for(const hrow of band){
+        const v=String(hrow[c]||'').trim().toLowerCase();
+        if(v==='grand total'&&cGrand<0)cGrand=c;
+        if(v==='max'&&cMax<0)cMax=c;
+        if(v==='min'&&cMin<0)cMin=c;
       }
-      if(cCur<0){ // fall back: rightmost month column of current year
-        for(let c=0;c<yearRow.length;c++){const yv=Math.round(+yearRow[c])||0,mv=Math.round(+monRow[c])||0;if(yv===Y&&mv>0)cCur=c;}
-      }
-      if(cCur<0&&cTot<0)continue;
-      return {sn,hr,cCur,cTot};
+      if(cGrand<0)continue; // the Grand Total column is what DSC actually holds — required
+      return {sn,hr,cGrand,cMax,cMin};
     }
   }
   return null;
@@ -778,15 +757,21 @@ function sniffDSCPivot(wb){
 function parseDSCPivot(wb){
   const m=sniffDSCPivot(wb);if(!m)return null;
   const r=rws(wb.Sheets[m.sn]);
-  const cur={},tot={};
+  const cur={},max={},min={},floor=new Set();
   for(let i=m.hr+1;i<r.length;i++){
     let code=String(r[i][0]||'').trim();
     if(/^\d{5}\.0$/.test(code))code=code.slice(0,5);
-    if(!/^\d{5}$/.test(code))continue;
-    if(m.cCur>=0){const q=+r[i][m.cCur];if(!isNaN(q)&&r[i][m.cCur]!=null)cur[code]=(cur[code]||0)+q;}
-    if(m.cTot>=0){const q=+r[i][m.cTot];if(!isNaN(q)&&r[i][m.cTot]!=null)tot[code]=(tot[code]||0)+q;}
+    if(!/^12\d{3}$/.test(code))continue;
+    // DSC on-hand = the GRAND TOTAL column — the total cans DSC is holding at floor level (NOT the current-period production)
+    const gv=+r[i][m.cGrand];
+    cur[code]=(cur[code]||0)+((!isNaN(gv)&&r[i][m.cGrand]!=null)?gv:0);
+    // Max/Min set (the yellow-highlighted rows) marks a DSC floor-stock can
+    const mx=m.cMax>=0?+r[i][m.cMax]:0, mn=m.cMin>=0?+r[i][m.cMin]:0;
+    if(!isNaN(mx)&&mx>0)max[code]=mx;
+    if(!isNaN(mn)&&mn>0)min[code]=mn;
+    if((!isNaN(mx)&&mx>0)||(!isNaN(mn)&&mn>0))floor.add(code);
   }
-  return {cur,tot};
+  return {cur,tot:null,floor,max,min};
 }
 function sniffDSC(wb){
   for(const sn of wb.SheetNames){
@@ -859,6 +844,30 @@ function parsePA(wb){
     }
   }
   return fg;
+}
+function parseExpedite(wb){
+  // Expedite decision file: one row per PO — "Can expedite? (YES/NO)" + "New arrival date". YES with a date pulls that PO's arrival in.
+  for(const sn of wb.SheetNames){
+    const r=rws(wb.Sheets[sn]);
+    const h=(r[0]||[]).map(x=>String(x||'').trim().toLowerCase());
+    const iPO=h.findIndex(x=>x==='po'||x==='po #'||x.includes('po #')||(x.includes('po')&&x.includes('#')));
+    const iDec=h.findIndex(x=>x.includes('expedite?')||x.includes('can expedite')||(x.includes('expedite')&&x.includes('yes')));
+    const iNew=h.findIndex(x=>x.includes('new')&&(x.includes('arriv')||x.includes('date')));
+    if(iPO<0||iDec<0)continue;
+    const out={};
+    for(let i=1;i<r.length;i++){
+      const po=String(r[i][iPO]||'').trim();if(!po)continue;
+      const dv=String(r[i][iDec]||'').trim().toLowerCase();
+      let dec=null;
+      if(/^(y|yes|ok|approved?|confirm(ed)?)$/.test(dv))dec='yes';
+      else if(/^(n|no|reject(ed)?|declin(ed)?|cannot|can'?t)$/.test(dv))dec='no';
+      if(!dec)continue;
+      const nd=iNew>=0?xDate(r[i][iNew]):null;
+      out[po]={dec,newDate:nd&&!isNaN(nd)?nd:null};
+    }
+    return out;
+  }
+  return null;
 }
 function parsePO(wb){
   const r=rws(sheetByName(wb,'po_purchaseorderdetail'));
@@ -1066,7 +1075,12 @@ function compute(){
     const dscTot=state.dscTot?state.dscTot[code]:null;
     const d=dem[code]||new Float64Array(H);
     const daily=d.slice(0,60).reduce((a,b)=>a+b,0)/60;
-    const posAll=(state.po&&state.po[code])?[...state.po[code]].sort((a,b)=>(a.date||0)-(b.date||0)):[];
+    const posAll=(state.po&&state.po[code])?[...state.po[code]].map(p=>{
+      const ed=state.expDec&&state.expDec[p.po];
+      if(ed&&ed.dec==='yes'&&ed.newDate)return {...p,date:ed.newDate,origDate:p.date,expedited:true};
+      if(ed&&ed.dec==='no')return {...p,expNo:true};
+      return p;
+    }).sort((a,b)=>(a.date||0)-(b.date||0)):[];
     const stalePos=[],pos=[];
     for(const p of posAll){
       const di=p.date?Math.round((p.date-T)/DAY):0;
@@ -1312,7 +1326,7 @@ function whyOf(x){
   if(x.floor)li.push(`<b>DSC floor-stock can</b> — DSC keeps this printed can on their floor, so the short <b>${+$('#setFLT').value||7}-day quick-turn lead time</b> is applied instead of the standard 28 days.`);
   if(x.dscOH!=null||x.dscTot!=null){
     const cur=x.dscOH!=null?fmt(x.dscOH):'0';
-    li.push(`DSC floor report: <b>${cur} cans</b> in the current-period column${x.dscTot!=null&&x.dscTot!==x.dscOH?` (all lots total: ${fmt(x.dscTot)})`:''}${x.quickPull?` — <b>covers the full need, so the ${+$('#setFLT').value||7}-day quick-turn lead is applied</b> instead of ${x.floor?'':'the standard '}${(x.floor?'':'28-day')} lead`:(x.suggest&&(x.dscOH||0)>0?' — covers part of the need; confirm the balance with DSC':'')}.`);
+    li.push(`DSC is holding <b>${cur} cans</b> on their floor (Grand Total on hand)${x.quickPull?` — <b>covers the full need, so the ${+$('#setFLT').value||7}-day quick-turn lead is applied</b> instead of ${x.floor?'':'the standard '}${(x.floor?'':'28-day')} lead`:(x.suggest&&(x.dscOH||0)>0?' — covers part of the need; confirm the balance with DSC':'')}.`);
   }
   if(x.ns)li.push(`NetStock status: <b>${x.ns}</b>${x.ss?` · safety stock ${fmt(x.ss)} cans`:''}.`);
   if(x.suggest)li.push(`Suggested buy: <b>${fmt(x.suggest)} cans (≈${x.trucks.toFixed(1)} trucks)</b> to cover ${+$('#setCov').value||45} days past run-out — at least the ${fmt(+$('#setMOQ').value||5000)}-can MOQ (a minimum, not rounded to multiples); cans are then combined to fill full ${fmt(+$('#setTruck').value||95000)}-can trucks in the PO builder.`);
@@ -1381,15 +1395,23 @@ function plannerData(){
     .sort((a,b)=>b.totDem-a.totDem);
   const bks=planBuckets(state.planMode,T);
   const data=rows.map(x=>{
-    let bal=x.onHand;
+    let bal=x.onHand,totNeed=0,totArr=0;
     const cells=bks.map(b=>{
       let need=0,arr=0;
       for(let i=b.so;i<=b.eo;i++){need+=x.demArr[i];arr+=x.arrArr[i];}
-      bal+=arr-need;
+      bal+=arr-need;totNeed+=need;totArr+=arr;
       return {need,arr,eop:bal};
     });
-    return {x,cells};
-  });
+    const eops=cells.map(c=>c.eop);
+    const peak=Math.max(x.onHand,...eops);           // highest projected on-hand across the horizon
+    const trough=Math.min(x.onHand,...eops);         // lowest (deepest shortfall)
+    const maxCans=x.daily>0?x.bMax*x.daily:Infinity; // MAX-band ceiling in cans
+    // over-ordered = the slice of incoming POs that carries the peak beyond the 60-day MAX policy (never more than what's on order)
+    const overCans=(x.daily>0&&x.incoming>0)?Math.max(0,Math.min(x.incoming,peak-maxCans)):0;
+    const overDays=x.daily>0?overCans/x.daily:0;
+    const deficit=Math.max(0,-trough);               // deepest projected shortfall in cans
+    return {x,cells,totNeed,totArr,endFinal:eops.length?eops[eops.length-1]:x.onHand,peak,overCans,overDays,deficit};
+  }).sort((a,b)=>b.totNeed-a.totNeed); // rank cans by total production demand (highest first)
   return {T,bks,data};
 }
 function renderPlanner(){
@@ -1402,10 +1424,11 @@ function renderPlanner(){
   const head=`<tr>
     <th class="stick c1">Can #</th><th class="stick c2">Description</th><th class="stick c3">FG → goes into</th><th class="stick c4">On hand<span class="bsub">today</span></th>
     ${bks.map(b=>`<th class="${b.cur?'cur':''}">${b.label}${b.cur?' · NOW':''}<span class="bsub">${b.sub}${b.partial?' (part.)':''}</span></th>`).join('')}
+    <th class="ctot">\u03a3 Horizon total<span class="bsub">produce · PO in · end · over-max</span></th>
   </tr>`;
-  const body=data.map(({x,cells})=>`<tr>
+  const body=data.map((d,i)=>{const {x,cells}=d;return `<tr>
     <td class="stick c1 mono">${x.code}</td>
-    <td class="stick c2" title="${x.desc}">${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</td>
+    <td class="stick c2" title="${x.desc}"><span class="rk">#${i+1}</span>${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</td>
     <td class="stick c3" title="${x.fgFull.replace(/"/g,'&quot;')}">${x.fgTop||'—'}</td>
     <td class="stick c4"><b>${fmt(x.onHand)}</b></td>
     ${cells.map((c,i)=>`<td class="${bks[i].cur?'cur':''}">
@@ -1413,21 +1436,56 @@ function renderPlanner(){
       ${c.arr>0?`<span class="sub po">+${fmt(c.arr)} PO</span>`:''}
       <span class="sub ${c.eop<0?'neg':''}">end ${c.eop<0?'−':''}${fmt(Math.abs(c.eop))}</span>
     </td>`).join('')}
-  </tr>`).join('');
+    <td class="ctot">
+      <span class="need">${fmt(Math.round(d.totNeed))}</span>
+      ${d.totArr>0?`<span class="sub po">+${fmt(Math.round(d.totArr))} PO</span>`:''}
+      <span class="sub ${d.endFinal<0?'neg':''}">end ${d.endFinal<0?'−':''}${fmt(Math.abs(Math.round(d.endFinal)))}</span>
+      ${d.overDays>=1&&d.overCans>0?`<span class="sub over">\u26a0 over 60d: ${fmt(Math.round(d.overCans))} (~${d.overDays.toFixed(0)}d)</span>`:''}
+    </td>
+  </tr>`}).join('');
   const tot=bks.map((b,i)=>{
     let need=0,arr=0;data.forEach(({cells})=>{need+=cells[i].need;arr+=cells[i].arr;});
     return `<td class="${b.cur?'cur':''}"><span class="need">${fmt(need)}</span>${arr>0?`<span class="sub po">+${fmt(arr)} PO</span>`:''}</td>`;
   }).join('');
+  const gNeed=data.reduce((a,d)=>a+d.totNeed,0),gArr=data.reduce((a,d)=>a+d.totArr,0),gEnd=data.reduce((a,d)=>a+d.endFinal,0),gOver=data.reduce((a,d)=>a+d.overCans,0);
+  const gtot=`<td class="ctot"><span class="need">${fmt(Math.round(gNeed))}</span>${gArr>0?`<span class="sub po">+${fmt(Math.round(gArr))} PO</span>`:''}<span class="sub ${gEnd<0?'neg':''}">end ${gEnd<0?'−':''}${fmt(Math.abs(Math.round(gEnd)))}</span>${gOver>0?`<span class="sub over">\u26a0 over 60d: ${fmt(Math.round(gOver))}</span>`:''}</td>`;
+  // ---- Over-ordered (past 60-day MAX) → remove or swap toward a short can ----
+  const donors=data.filter(d=>d.overDays>=1&&d.overCans>0).sort((a,b)=>b.overCans-a.overCans);
+  const recips=data.filter(d=>d.deficit>0).sort((a,b)=>b.deficit-a.deficit).map(d=>({d,rem:d.deficit}));
+  let ovHTML='';
+  if(donors.length){
+    const totOver=Math.round(donors.reduce((a,d)=>a+d.overCans,0));
+    const rows=donors.map(don=>{
+      let over=don.overCans;const swaps=[];
+      for(const rc of recips){if(over<=0)break;if(rc.rem<=0)continue;const mv=Math.min(over,rc.rem);if(mv<500)continue;swaps.push({to:rc.d,mv});over-=mv;rc.rem-=mv;}
+      const posTxt=(don.x.pos||[]).length?don.x.pos.slice(0,3).map(p=>`PO ${p.po} ${fmt(p.qty)}${p.date?' due '+dstr(p.date):''}`).join(' · '):'no open PO lines on file';
+      const swapTxt=swaps.length
+        ? swaps.map(s=>`\u21c4 swap ~<b>${fmt(Math.round(s.mv))}</b> toward <b>${s.to.x.code}</b> ${s.to.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'').slice(0,26)} (short ${fmt(Math.round(s.to.deficit))})`).join('<br>')
+        : '';
+      const residual=Math.round(over);
+      return `<div class="ovrow">
+        <div class="ov1"><span class="ovcan"><span class="mono">${don.x.code}</span>${don.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</span>
+          <span class="ovamt">over 60-day max by ${fmt(Math.round(don.overCans))} cans (~${don.overDays.toFixed(0)}d)</span></div>
+        <div class="ovpos">Open orders: ${posTxt}</div>
+        ${swapTxt?`<div class="ovswap">${swapTxt}${residual>500?` &nbsp;·&nbsp; remaining <b>${fmt(residual)}</b> not needed by any short can — cancel / reduce next DSC order`:''}</div>`
+                 :`<div class="ovcancel">\u2702 No short can needs this — safe to cancel or reduce the next DSC order by ~${fmt(Math.round(don.overCans))}.</div>`}
+      </div>`;
+    }).join('');
+    ovHTML=`<div class="ovpanel">
+      <div class="ovh">\u2696\ufe0f Over-ordered vs 60-day max <span class="cnt">${donors.length} can${donors.length>1?'s':''} · ${fmt(totOver)} cans past max</span>
+        <span class="ovnote">These placed orders push the can beyond your MAX policy — remove them, or swap the capacity toward a can that's short.</span></div>
+      ${rows}</div>`;
+  }
   el.innerHTML=`
   <div class="planbar">
     <div class="modetog"><button id="pmWk" class="${state.planMode==='wk'?'on':''}">By week</button><button id="pmPer" class="${state.planMode==='per'?'on':''}">By period (month)</button></div>
     <span class="now">${nowTxt}</span>
     <button class="btn ghost" id="planExp" style="margin-left:auto">⬇ Export planner</button>
   </div>
-  <div class="secnote">Consumption per ${state.planMode==='wk'?'fiscal week':'fiscal period'} = the same live production need the board runs on (forecast × BOM cans-per-case + firm PA timing), from today forward. <b>end</b> = projected balance after the bucket (on hand − consumption + <span style="color:var(--green)">PO arrivals</span>) — red means projected shortfall by then. The current ${state.planMode==='wk'?'week':'period'} counts remaining days only (today onward). Horizon: 180 days.</div>
+  <div class="secnote">Consumption per ${state.planMode==='wk'?'fiscal week':'fiscal period'} = the same live production need the board runs on (forecast × BOM cans-per-case + firm PA timing), from today forward. <b>end</b> = projected balance after the bucket (on hand − consumption + <span style="color:var(--green)">PO arrivals</span>) — red means projected shortfall by then. The current ${state.planMode==='wk'?'week':'period'} counts remaining days only (today onward). Cans are <b>ranked by total production demand</b> (highest first); the sticky <b>Σ Horizon total</b> column on the right sums each can's produce-need and incoming POs and shows where it ends up. Horizon: 180 days.</div>
   <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}
-    <tr class="tot"><td class="stick c1"></td><td class="stick c2">TOTAL — all cans shown</td><td class="stick c3"></td><td class="stick c4">${fmt(data.reduce((a,d)=>a+d.x.onHand,0))}</td>${tot}</tr>
-  </tbody></table></div>`;
+    <tr class="tot"><td class="stick c1"></td><td class="stick c2">TOTAL — all cans shown</td><td class="stick c3"></td><td class="stick c4">${fmt(data.reduce((a,d)=>a+d.x.onHand,0))}</td>${tot}${gtot}</tr>
+  </tbody></table></div>${ovHTML}`;
   $('#pmWk').onclick=()=>{state.planMode='wk';renderPlanner();};
   $('#pmPer').onclick=()=>{state.planMode='per';renderPlanner();};
   $('#planExp').onclick=exportPlanner;
@@ -1438,19 +1496,38 @@ function renderPlanner(){
 function exportPlanner(){
   const {T,bks,data}=plannerData();
   if(!data.length){toast('No data to export');return;}
-  const rows=data.map(({x,cells})=>{
-    const r={'Can #':x.code,'Description':x.desc,'FG (top)':x.fgTop,'On hand today':Math.round(x.onHand)};
-    bks.forEach((b,i)=>{
-      r[b.label+' ('+b.sub+') need']=Math.round(cells[i].need);
-      r[b.label+' PO in']=Math.round(cells[i].arr);
-      r[b.label+' end bal']=Math.round(cells[i].eop);
-    });
-    return r;
-  });
-  const ws=XLSX.utils.json_to_sheet(rows);
+  // Mirror the on-screen template: cans ranked by production demand (left), each bucket ONE column with three
+  // stacked rows (Consumption need → PO arriving → Projected end), and a rightmost Σ Horizon total column.
+  const aoa=[];const merges=[];
+  const h1=['Rank','Can #','Description','FG \u2192 goes into','On hand today',''].concat(bks.map(b=>b.label+(b.cur?' \u00b7 NOW':''))).concat(['\u03a3 Horizon total','Over vs 60d max']);
+  const h2=['','','','','','Line'].concat(bks.map(b=>b.sub+(b.partial?' (part.)':''))).concat(['produce / PO in / end','cans past max']);
+  aoa.push(h1,h2);
+  for(let c=0;c<6;c++)merges.push({s:{r:0,c},e:{r:1,c}});
+  let r=2;
+  const block=(rank,id,desc,fg,oh,cells,tNeed,tArr,tEnd,over)=>{
+    aoa.push([rank,id,desc,fg,oh,'Consumption need',...cells.map(c=>Math.round(c.need)),Math.round(tNeed),'']);
+    aoa.push(['','','','','','PO arriving',   ...cells.map(c=>Math.round(c.arr)),Math.round(tArr),'']);
+    aoa.push(['','','','','','Projected end',  ...cells.map(c=>Math.round(c.eop)),Math.round(tEnd),Math.round(over||0)]);
+    for(let c=0;c<5;c++)merges.push({s:{r,c},e:{r:r+2,c}});
+    r+=3;
+  };
+  data.forEach((d,i)=>block(i+1,d.x.code,d.x.desc,d.x.fgTop||'\u2014',Math.round(d.x.onHand),d.cells,d.totNeed,d.totArr,d.endFinal,d.overCans));
+  const gNeed=data.reduce((a,d)=>a+d.totNeed,0),gArr=data.reduce((a,d)=>a+d.totArr,0),gEnd=data.reduce((a,d)=>a+d.endFinal,0),gOver=data.reduce((a,d)=>a+d.overCans,0);
+  const totCells=bks.map((b,i)=>({need:data.reduce((a,d)=>a+d.cells[i].need,0),arr:data.reduce((a,d)=>a+d.cells[i].arr,0),eop:data.reduce((a,d)=>a+d.cells[i].eop,0)}));
+  block('','TOTAL \u2014 all cans shown','','',Math.round(data.reduce((a,d)=>a+d.x.onHand,0)),totCells,gNeed,gArr,gEnd,gOver);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!merges']=merges;
+  ws['!cols']=[{wch:6},{wch:9},{wch:34},{wch:16},{wch:13},{wch:16}].concat(bks.map(()=>({wch:13}))).concat([{wch:16},{wch:15}]);
+  ws['!freeze']={xSplit:6,ySplit:2};
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let R=2;R<=range.e.r;R++)for(let C=0;C<=range.e.c;C++){
+    if(C===5)continue;
+    const cell=ws[XLSX.utils.encode_cell({r:R,c:C})];
+    if(cell&&typeof cell.v==='number')cell.z='#,##0';
+  }
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,state.planMode==='wk'?'By week':'By period');
   XLSX.writeFile(wb,'Can_Consumption_Planner_'+(state.planMode==='wk'?'weekly_':'period_')+new Date().toISOString().slice(0,10)+'.xlsx');
-  toast('Planner exported');
+  toast('Planner exported \u2014 ranked, with horizon totals');
 }
 
 /* ---------- order schedule page ---------- */
@@ -1762,7 +1839,7 @@ function render(){
   const declined=queue.filter(x=>x.swapDeclined);
   const declinedCodes=new Set(declined.map(x=>x.code));
   const planPOfor=code=>allPOs.find(p=>p.lines.some(l=>l.code===code));
-  const expedites=base.filter(x=>x.cls==='exp');
+  const expedites=base.filter(x=>x.cls==='exp');state.expedites=expedites;
   const outs=base.filter(x=>x.cls==='out');
   const swapsPool=(state.swaps||[]).filter(s=>match(s));
   const stale=(state.stale||[]).filter(s=>match(s));
@@ -1794,10 +1871,12 @@ function render(){
   const custNote=state.cust.size?`<div class="stitem s-grn" style="border-color:#b8e2cc"><b>👥</b>filtered to ${state.cust.size} customer${state.cust.size>1?'s':''}</div>`:'';
   const comanCansN=base.filter(x=>x.coman).length;
   const comanBelow=base.filter(x=>x.coman&&x.bandStatus==='below').length;
+  const {plan:overPlanArr,totOver:totOverCans,donors:overDonors}=overorderPlan();
   const strip=`<div class="strip">${custNote}
     <div class="stitem ${dscList.length?'s-red':''}" data-goto="dsc"><b>${dscList.length}</b>talk to DSC</div>
     <div class="stitem ${allPOs.length?'s-org':''}" data-goto="orders"><b>${allPOs.length}</b>POs to place</div>
     <div class="stitem ${swapActions.length?'s-grn':''}" data-goto="swaps"><b>${swapActions.length}</b>POs to swap</div>
+    <div class="stitem ${overDonors.length?'s-org':''}" data-goto="overord"><b>${overDonors.length}</b>over-ordered</div>
     <div class="stitem ${comanBelow?'s-red':(comanCansN?'s-grn':'')}" data-goto="coman"><b>${comanCansN}</b>co-man cans${comanBelow?` · ${comanBelow} low`:''}</div>
     <div class="stitem ${expedites.length?'s-org':''}" data-goto="exped"><b>${expedites.length}</b>expedites</div>
     <div class="stitem ${outs.length?'s-red':''}" data-goto="status"><b>${outs.length}</b>stocked out</div>
@@ -1856,12 +1935,20 @@ function render(){
     </div>`;
 
   // ---- 3. expedites ----
-  const expBody=`<div class="cardcol">${expedites.map(x=>`<div class="scard">
-      <div class="sch"><b>PO ${x.expedite.po.po}</b><span class="scby">currently due ${dstr(x.expedite.po.date)}</span><span class="sctot">${fmt(x.expedite.po.qty)} cans</span></div>
+  const expDecLoaded=state.files.expdec;
+  const expBody=`<div class="secnote"><b>Workflow:</b> 1) Export the <b>expedite decision template</b> below · 2) DSC marks each PO <b>YES / NO</b> and, for YES, fills the <b>New arrival date</b> · 3) drop the file back here — YES pulls that PO's arrival in to the new date (the board re-plans around it); NO leaves it and, if it still can't cover, the need becomes a new order.${expDecLoaded?` <b style="color:var(--green)">Decisions loaded: ${expDecLoaded}</b>`:''}</div>
+    <div class="cardcol">${expedites.map(x=>{
+      const ed=state.expDec&&state.expDec[x.expedite.po.po];
+      const badge=ed?(ed.dec==='yes'?`<span class="confchip">✔ EXPEDITED${ed.newDate?' → '+dstr(ed.newDate):''}</span>`:`<span class="decchip">✖ DSC can't expedite</span>`):'';
+      return `<div class="scard">
+      <div class="sch"><b>PO ${x.expedite.po.po}</b>${badge}<span class="scby">currently due ${dstr(x.expedite.po.date)}</span><span class="sctot">${fmt(x.expedite.po.qty)} cans</span></div>
       <div class="scl" data-c="${x.code}"><span class="mono">${x.code}</span><span class="scd">${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</span><span class="scq" style="color:var(--orange)">pull in to ${dstr(addD(T,x.expedite.by))}</span></div>
       <div class="swwhy">arriving ${x.expedite.late} day(s) after the need-by date — ask DSC to expedite; no new order required.</div>
-    </div>`).join('')||'<div class="emptyrow">No expedites needed.</div>'}</div>
-    ${expedites.length?`<button class="btn ghost secexp" data-x="exped">⬇ Export expedites</button>`:''}`;
+    </div>`;}).join('')||'<div class="emptyrow">No expedites needed.</div>'}</div>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+      ${expedites.length?`<button class="btn secexp" data-x="exptpl">⬇ Expedite decision template (for DSC)</button>`:''}
+      ${expedites.length?`<button class="btn ghost secexp" data-x="exped">⬇ Export expedites</button>`:''}
+    </div>`;
 
   // ---- 4. priority queue detail ----
   const perNow=T.getMonth()+1;
@@ -1901,6 +1988,21 @@ function render(){
     }).join('')||'<div class="emptyrow">No co-man cans matched — check the customer names in the 🤝 bar against your Live PA, or load Live PA.</div>'}
     ${comanCans.length?`<button class="btn secexp" data-x="coman">⬇ Co-man on-hand plan (per customer)</button>`:''}`;
 
+  // ---- 5c. over-ordered POs — remove or swap ----
+  const overBody=`<div class="secnote">These cans already have open POs that carry them <b>past your ${state.gMaxDOS}-day MAX policy</b> — the excess isn't needed. Remove those PO lines, or swap the DSC capacity toward a can that's projected short. Recommendations use only your <b>current open POs</b>.</div>
+    ${overPlanArr.length?overPlanArr.map(({o,swaps,residual})=>{
+      const posTxt=(o.x.pos||[]).length?o.x.pos.slice(0,3).map(p=>`PO ${p.po} ${fmt(p.qty)}${p.date?' due '+dstr(p.date):''}`).join(' · '):'no open PO lines on file';
+      const swapTxt=swaps.length?swaps.map(s=>`\u21c4 swap ~<b>${fmt(Math.round(s.mv))}</b> toward <b>${s.to.code}</b> ${s.to.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'').slice(0,28)} (short ${fmt(Math.round(s.def))})`).join('<br>'):'';
+      return `<div class="ovrow">
+        <div class="ov1"><span class="ovcan"><span class="mono">${o.x.code}</span>${o.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</span>
+          <span class="ovamt">over ${state.gMaxDOS}-day max by ${fmt(Math.round(o.over))} cans (~${o.overDays.toFixed(0)}d)</span></div>
+        <div class="ovpos">Open orders: ${posTxt}</div>
+        ${swapTxt?`<div class="ovswap">${swapTxt}${residual>500?` &nbsp;·&nbsp; remaining <b>${fmt(residual)}</b> not needed by any short can — cancel / reduce next DSC order`:''}</div>`
+                 :`<div class="ovcancel">\u2702 No short can needs this — safe to cancel or reduce the next DSC order by ~${fmt(Math.round(o.over))}.</div>`}
+      </div>`;
+    }).join(''):'<div class="emptyrow">No over-ordered POs — every can stays within your MAX policy.</div>'}
+    ${overPlanArr.length?`<button class="btn ghost secexp" data-x="overord">⬇ Export over-order & swaps</button>`:''}`;
+
   // ---- 6. ignored POs ----
   const staleBody=`<div class="secnote">Overdue > ${+$('#setStale').value||3} days, or short-ship leftovers < ${fmt(+$('#setRemnant').value||5000)} cans — excluded from all math. Clear these from the system.</div>
     ${stale.map(s=>`<div class="prow" data-c="${s.code}"><span class="tagc tg-na">${s.why==='stale'?'STALE':'SHORT'}</span>
@@ -1923,16 +2025,32 @@ function render(){
       <div class="pfoot"><span class="more" data-tog="${p.k}">${rs.length>5?(exp?'Show top 5 ▲':`View all ${rs.length} ▼`):''}</span>
         <span class="sum" style="color:${p.col}">${secx.b||''}</span></div></div>`;}).join('')}</div>`;
 
+  state.snapCounts={swaps:swapActions.length,talkDSC:dscList.length};
+  // ---- daily tracker (capture / recall) ----
+  const track=trackerLoad();
+  const trackerBody=`<div class="secnote">Snapshot today's action lists and counts so you can answer <b>"what did I tell them on &lt;date&gt;?"</b> later. <b>Capture today</b> saves today's picture in this browser; re-capturing overwrites the same day. Export the whole tracker to Excel any time to hand over past days' data points.</div>
+    <div style="display:flex;gap:10px;margin:2px 0 12px;flex-wrap:wrap">
+      <button class="btn secexp" data-x="trackcap">📸 Capture today</button>
+      ${track.length?`<button class="btn ghost secexp" data-x="trackexp">⬇ Export tracker (Excel)</button>`:''}
+      ${track.length?`<button class="btn ghost secexp" data-x="trackclear">🗑 Clear tracker</button>`:''}
+    </div>
+    ${track.length?track.map(s=>`<div class="ovrow">
+      <div class="ov1"><span class="ovcan">${s.label||s.date}</span><span class="ovamt">${s.metrics.posToPlace} POs · ${s.metrics.expedites} expedites · ${s.metrics.swaps} swaps · ${fmt(s.metrics.overCans||0)} over</span></div>
+      <div class="ovpos">${s.metrics.stockedOut} stocked out · ${s.metrics.talkDSC} talk-to-DSC · ${s.metrics.activeCans} active cans · captured ${new Date(s.ts).toLocaleString()}</div>
+    </div>`).join(''):'<div class="emptyrow">No snapshots yet — click 📸 Capture today to start the tracker.</div>'}`;
+
   $('#pgrid').innerHTML=strip
     +sec('dsc','📞','Talk to DSC — firm PA at risk','var(--red)',dscList.length,'cans',`current POs won't cover firm PA in time (${(+($('#setBuf')||{}).value||7)}d buffer)${noPOn?` · ${noPOn} no PO`:''}${latePOn>0?` · ${latePOn} PO too late`:''}${dscList.filter(x=>(x.orderBy??999)<=0).length?` · ${dscList.filter(x=>(x.orderBy??999)<=0).length} past due`:''}`,dscBody,dscList.length>0)
     +sec('orders','📝','POs need to be ordered','var(--orange)',allPOs.length,'POs',`${fmt(allPOs.reduce((a,p)=>a+p.total,0))} cans · ${plan.now.length} today, ${plan.week.length} next week`,ordersBody,true)
     +sec('swaps','⇄','POs need to be swapped','var(--green)',swapActions.length,'swaps',`existing POs redirected to firm PA needs${swapActions.filter(x=>x.swapAlt).length?` · ${swapActions.filter(x=>x.swapAlt).length} alternative after NO`:''}${declined.length?` · ${declined.length} ✖ declined by DSC`:''}`,swapsBody,false)
+    +sec('overord','⚖️','Over-ordered POs — remove or swap','#b06d00',overDonors.length,'cans',`${fmt(totOverCans)} cans past the ${state.gMaxDOS}-day max · reallocate with open POs`,overBody,overDonors.length>0)
     +sec('exped','⏩','POs to expedite','var(--orange)',expedites.length,'POs','arriving after the need-by date — pull in',expBody,true)
     +sec('queue','📋','Priority queue — detail','var(--red)',queue.length,'cans','the ranking behind the orders & swaps',queueBody,false)
     +sec('pool','🟢','Swappable PO pool','var(--green)',swapsPool.length,'POs',`${fmt(swapsPool.reduce((a,s)=>a+s.p.qty,0))} cans available to trade`,poolBody,false)
     +sec('coman','🤝','Co-manufacturing — inventory band','#2f5da8',comanCans.length,'cans',`held to ${state.comanMin}–${state.comanMax} days · ${comanCans.filter(x=>x.bandStatus==='below').length} below min, ${comanCans.filter(x=>x.bandStatus==='over').length} over max`,comanBody,comanCans.some(x=>x.bandStatus==='below'))
     +sec('ignored','🗑','Ignored POs — stale & short-ships','var(--faint)',stale.length,'lines',`${fmt(stale.reduce((a,s)=>a+s.p.qty,0))} cans of dead supply to clear`,staleBody,false)
-    +sec('status','📦','All cans by status','var(--blue)',base.length,'cans','stocked out · order timing · variances · covered',statusBody,false);
+    +sec('status','📦','All cans by status','var(--blue)',base.length,'cans','stocked out · order timing · variances · covered',statusBody,false)
+    +sec('tracker','📸','Daily tracker — capture & recall','#2f5da8',track.length,'days','snapshot today so you can answer questions about past days later',trackerBody,false);
 
   // wiring
   document.querySelectorAll('.sechead').forEach(el=>el.onclick=()=>{state.sec[el.dataset.sec]=!state.sec[el.dataset.sec];render();});
@@ -1944,7 +2062,10 @@ function render(){
     const k=el.dataset.x;
     if(k==='plan')exportPlan();else if(k==='simple')exportSimple();else if(k==='queue')exportQueue();
     else if(k==='swaptpl')exportSwapTemplate();
+    else if(k==='exptpl')exportExpediteTemplate();
     else if(k==='swap')exportSwaps();else if(k==='stale')exportStale();else if(k==='coman')exportComan();else if(k==='dsc')exportDSC();
+    else if(k==='overord')exportOverorder();
+    else if(k==='trackcap')captureSnapshot();else if(k==='trackexp')exportTracker();else if(k==='trackclear')clearTracker();
     else if(k==='exped')exportRows(expedites,'Cans_Expedite');});
   const act=state.rows.filter(x=>x.active&&['out','exp','now'].includes(x.cls)).length;
   $('#hdMeta').textContent=`${state.rows.filter(x=>x.active).length} active cans · ${allPOs.length} POs to place · ${swapActions.length} swaps · ${act} urgent`;
@@ -1957,6 +2078,7 @@ const SLOTS=[
   ['count','🔢','Can Inv Count','built-in 8/4 count · drop file to update',false],
   ['dsc','🏭','DSC Floor Stock','DSC on-hand per can · optional',false],
   ['swapdec','✅','Swap Decisions','DSC yes/no template · re-upload',false],
+  ['expdec','⏩','Expedite Decisions','DSC yes/no + new date · re-upload',false],
   ['forecast','📈','Forecast','built-in · optional update',false],
   ['bom','🧩','BOM','built-in · optional update',false],
 ];
@@ -1967,6 +2089,7 @@ function removeFile(k){
   else if(k==='count')state.count=EMB.count||null;
   else if(k==='dsc'){state.dsc=null;state.dscTot=null;}
   else if(k==='swapdec'){state.swapDec={pair:{},poNo:new Set(),declinedFor:{}};}
+  else if(k==='expdec'){state.expDec={};state.files.expdec=null;}
   else if(k==='forecast'){state.forecast=EMB.forecast;}
   else if(k==='bom'){state.billMap=EMB.billMap;state.canDesc=EMB.canDesc;}
   state.files[k]=(k==='forecast'||k==='bom'||(k==='count'&&EMB.count))?'built-in':null;
@@ -2233,9 +2356,12 @@ async function handleFiles(list){
         }
         else alert(`Couldn't read decisions from "${f.name}" — keep the template's columns.`);
       }
+      else if(t==='expdec'){const e=parseExpedite(wb);if(e){state.expDec=e;state.files.expdec=f.name;names.push('Expedite Decisions');}else alert(`Couldn't read expedite decisions in "${f.name}".`);}
       else if(t==='dsc'){
         const pv=parseDSCPivot(wb);
-        if(pv){state.dsc=pv.cur;state.dscTot=pv.tot;state.files.dsc=f.name;names.push('DSC Floor Stock');}
+        if(pv){state.dsc=pv.cur;state.dscTot=pv.tot;state.files.dsc=f.name;
+          if(pv.floor&&pv.floor.size){state.floor=new Set(pv.floor);const el=$('#floorList');if(el)el.value=[...pv.floor].join(',');const fc=$('#floorCount');if(fc)fc.textContent=state.floor.size+' cans on quick-turn';}
+          names.push('DSC Floor Stock');}
         else{const p=parseDSC(wb);if(p){state.dsc=p;state.dscTot=null;state.files.dsc=f.name;names.push('DSC Floor Stock');}else alert(`Couldn't find item-code + quantity columns in "${f.name}".`);}
       }
       else alert(`Couldn't recognize "${f.name}". Expected: Stock on Hand, Live PA, Purchase Orders, Can Inv, DSC Floor Stock, Forecast, or BOM.`);
@@ -2320,7 +2446,7 @@ function openModal(code){
     <tr><td>Daily use</td><td>${fmt(x.daily)}</td></tr>
     <tr><td>Safety stock</td><td>${fmt(x.ss)}</td></tr>
     <tr><td>Lead time applied</td><td>${x.lt}d${x.floor?' (floor-stock list)':(x.quickPull?' (DSC floor covers need)':'')}</td></tr>
-    ${x.dscOH!=null?`<tr><td>DSC floor (current period)</td><td class="pos">${fmt(x.dscOH)}</td></tr>`:''}
+    ${x.dscOH!=null?`<tr><td>DSC holding (Grand Total)</td><td class="pos">${fmt(x.dscOH)}</td></tr>`:''}
     ${x.dscTot!=null?`<tr><td>DSC floor (all lots)</td><td class="pos">${fmt(x.dscTot)}</td></tr>`:''}
     <tr><td>Suggested buy</td><td>${x.suggest?fmt(x.suggest)+' (≈'+x.trucks.toFixed(1)+' trk)':'—'}</td></tr>
     ${x.bandStatus?`<tr><td>On-hand band</td><td class="${x.bandStatus==='below'?'neg':(x.bandStatus==='over'?'':'pos')}">${x.coman?`<b style="color:#2f5da8">🤝 ${x.comanCusts.join(', ')}</b> — `:''}hold ${x.bMin}–${x.bMax}d (${fmt(x.bandMinCans)}–${fmt(x.bandMaxCans)} cans)${x.bandStatus==='below'?' · BELOW MIN':(x.bandStatus==='over'?' · OVER MAX':' · in band')} · <span style="color:var(--faint)">${x.bandSrc}</span></td></tr>`:''}`;
@@ -2342,6 +2468,17 @@ function openModal(code){
             <div class="sv">${val}<small>${dos==null?'':'days'}</small></div>
             <div class="ss">${sub}${dos!=null&&dos<180?` · lasts to ${dstr(addD(T,Math.floor(dos)))}`:''}</div>
           </div>`;})()}
+        ${(x.floor||x.dscOH!=null)?(()=>{
+          const oh=x.dscOH!=null?x.dscOH:null;
+          const fdays=(oh!=null&&x.daily>0)?oh/x.daily:null;
+          const sub=oh==null
+            ? 'DSC floor-stock can — load the DSC report to see the on-floor qty'
+            : `${fdays!=null?fdays.toFixed(0)+' days of this can · ':''}quick-turn ${(+$('#setFLT').value||7)}-day lead${x.quickPull?' · covers the full need':((oh>0&&x.suggest)?' · covers part — confirm balance with DSC':'')}`;
+          return `<div class="statbox stat-floor">
+            <div class="sl">🏭 On DSC floor</div>
+            <div class="sv">${oh!=null?fmt(oh):'—'}<small>${oh!=null?'cans':''}</small></div>
+            <div class="ss">${sub}</div>
+          </div>`;})():''}
       </div>
       ${dosBoost}
       <div class="act ${a.c}">${a.t}</div>
@@ -2482,6 +2619,28 @@ function lineReason(code){
   const pa=x.paFirst?('Firm PA order — '+((x.paFirst.cust||'').trim()||'customer')+' ships '+dstr(x.paFirst.date)+' on '+x.paFirst.fg):'Forecast demand';
   return pa+'; plant runs dry '+(x.needDay!=null?dstr(addD(T,x.needDay)):'—')+'; cans needed in-house by '+(x.needBy!=null?dstr(addD(T,x.needBy)):'—')+' ('+x.lt+'d lead'+(x.floor||x.quickPull?', quick-turn':'')+')'+(x.swapDeclined?'; DSC declined the swap, so this became a new order':'');
 }
+function exportExpediteTemplate(){
+  const T=today();
+  const rows=(state.expedites||[]).map((x,i)=>{
+    const p=x.expedite.po;const ed=state.expDec&&state.expDec[p.po];
+    return {
+      'Expedite #':'EX-'+(i+1),
+      'Can #':x.code,'Description':x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,''),
+      'PO #':p.po,'Current due date':dstr(p.date),'Need arrival by':dstr(addD(T,x.expedite.by)),
+      'Days late':x.expedite.late,'PO qty':Math.round(p.qty),
+      'Reason':lineReason(x.code)+'; this PO exists but lands after the need-by date — pull it in instead of ordering again',
+      'Can expedite? (YES / NO)':ed?(ed.dec==='yes'?'YES':'NO'):'',
+      'New arrival date':ed&&ed.newDate?dstr(ed.newDate):'',
+      'Notes':''
+    };
+  });
+  if(!rows.length){toast('No expedites to send to DSC');return;}
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:9},{wch:8},{wch:38},{wch:11},{wch:13},{wch:13},{wch:9},{wch:9},{wch:90},{wch:22},{wch:15},{wch:26}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Expedite Decisions');
+  XLSX.writeFile(wb,'Expedite_Decision_Template_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Template downloaded — have DSC mark YES/NO and the new date, then drop it back here');
+}
 function exportSwapTemplate(){
   const T=today();
   const rows=(state.queue||[]).filter(x=>x.swapWith||x.swapDeclined).map((x,i)=>{
@@ -2582,6 +2741,92 @@ function exportDSC(){
   XLSX.writeFile(wb,'Can_TalkToDSC_'+new Date().toISOString().slice(0,10)+'.xlsx');
   toast('DSC call list exported');
 }
+function trackerLoad(){try{return JSON.parse(localStorage.getItem('alamance_tracker_v1')||'[]');}catch(e){return [];}}
+function trackerSave(arr){try{localStorage.setItem('alamance_tracker_v1',JSON.stringify(arr));return true;}catch(e){return false;}}
+function captureSnapshot(){
+  const T=today();const key=T.toISOString().slice(0,10);
+  const base=state.rows.filter(x=>x.active);
+  const plan=state.poPlan||{now:[],week:[]};const allPOs=[...plan.now,...plan.week];
+  let overPlan=[],totOver=0;try{const op=overorderPlan();overPlan=op.plan;totOver=op.totOver;}catch(e){}
+  const sc=state.snapCounts||{};
+  const snap={
+    date:key,label:dstr(T),ts:Date.now(),
+    metrics:{
+      activeCans:base.length,
+      posToPlace:allPOs.length,posCans:Math.round(allPOs.reduce((a,p)=>a+p.total,0)),
+      swaps:sc.swaps||0,talkDSC:sc.talkDSC||0,
+      expedites:(state.expedites||[]).length,
+      overCans:Math.round(totOver),overCount:overPlan.length,
+      stockedOut:base.filter(x=>x.cls==='out').length,
+      ignored:(state.stale||[]).length
+    },
+    orders:allPOs.flatMap(p=>p.lines.map(l=>({po:p.id,placeBy:p.placeBy<=0?'TODAY':dstr(addD(T,p.placeBy)),arrive:p.arrive!=null?dstr(addD(T,p.arrive)):'',code:l.code,qty:Math.round(l.qty)}))),
+    expedites:(state.expedites||[]).map(x=>({code:x.code,po:x.expedite.po.po,due:dstr(x.expedite.po.date),late:x.expedite.late})),
+    overord:overPlan.map(o=>({code:o.o.x.code,over:Math.round(o.o.over),swaps:o.swaps.map(s=>({to:s.to.code,mv:Math.round(s.mv)}))}))
+  };
+  const arr=trackerLoad().filter(s=>s.date!==key);arr.push(snap);arr.sort((a,b)=>a.date<b.date?1:-1);
+  const ok=trackerSave(arr);
+  toast(ok?('📸 Captured '+dstr(T)+' — '+arr.length+' day'+(arr.length>1?'s':'')+' in tracker'):'Capture failed — browser storage isn\u2019t available here. Open the file from GitHub or your disk (not inside a preview).');
+  render();
+}
+function clearTracker(){if(!confirm('Clear all captured snapshots? This cannot be undone.'))return;trackerSave([]);toast('Tracker cleared');render();}
+function exportTracker(){
+  const track=trackerLoad();if(!track.length){toast('Tracker is empty — capture a day first');return;}
+  const wb=XLSX.utils.book_new();
+  const sum=track.map(s=>({Date:s.label||s.date,'Active cans':s.metrics.activeCans,'POs to place':s.metrics.posToPlace,'PO cans':s.metrics.posCans,'Swaps':s.metrics.swaps,'Expedites':s.metrics.expedites,'Over-ordered cans':s.metrics.overCans,'Stocked out':s.metrics.stockedOut,'Talk to DSC':s.metrics.talkDSC,'Ignored POs':s.metrics.ignored,'Captured at':new Date(s.ts).toLocaleString()}));
+  const ws1=XLSX.utils.json_to_sheet(sum);ws1['!cols']=Object.keys(sum[0]).map(k=>({wch:Math.max(10,k.length+2)}));XLSX.utils.book_append_sheet(wb,ws1,'Daily Summary');
+  const ord=[];track.forEach(s=>(s.orders||[]).forEach(o=>ord.push({Date:s.label||s.date,'PO':o.po,'Place by':o.placeBy,'Arrive by':o.arrive,'Can #':o.code,'Qty':o.qty})));
+  if(ord.length){const ws2=XLSX.utils.json_to_sheet(ord);ws2['!cols']=[{wch:12},{wch:10},{wch:11},{wch:11},{wch:9},{wch:10}];XLSX.utils.book_append_sheet(wb,ws2,'Daily Orders');}
+  const exp=[];track.forEach(s=>(s.expedites||[]).forEach(e=>exp.push({Date:s.label||s.date,'Can #':e.code,'PO':e.po,'Due':e.due,'Days late':e.late})));
+  if(exp.length){const ws3=XLSX.utils.json_to_sheet(exp);ws3['!cols']=[{wch:12},{wch:9},{wch:11},{wch:12},{wch:9}];XLSX.utils.book_append_sheet(wb,ws3,'Daily Expedites');}
+  const ov=[];track.forEach(s=>(s.overord||[]).forEach(o=>ov.push({Date:s.label||s.date,'Can #':o.code,'Over max (cans)':o.over,'Swap toward':(o.swaps||[]).map(x=>x.to+' ('+x.mv+')').join('; ')})));
+  if(ov.length){const ws4=XLSX.utils.json_to_sheet(ov);ws4['!cols']=[{wch:12},{wch:9},{wch:16},{wch:50}];XLSX.utils.book_append_sheet(wb,ws4,'Daily Over-orders');}
+  XLSX.writeFile(wb,'Can_Daily_Tracker_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Tracker exported');
+}
+function overorderPlan(){
+  // Same over-order + swap logic the board card uses, recomputed from current rows/filters so the export always matches the screen.
+  const q=(state.q||'').toLowerCase();
+  const base=state.rows.filter(x=>x.active&&matchRow(x,q)&&(!state.cust.size||x.custMatch));
+  const overCalc=x=>{
+    if(!(x.daily>0)||!x.demArr)return {over:0,overDays:0,deficit:0};
+    let bal=x.onHand,peak=x.onHand,trough=x.onHand;const H=x.demArr.length;
+    for(let i=0;i<H;i++){bal+=(x.arrArr[i]||0)-(x.demArr[i]||0);if(bal>peak)peak=bal;if(bal<trough)trough=bal;}
+    const over=x.incoming>0?Math.max(0,Math.min(x.incoming,peak-x.bMax*x.daily)):0;
+    return {over,overDays:x.daily>0?over/x.daily:0,deficit:Math.max(0,-trough)};
+  };
+  const overRows=base.map(x=>({x,...overCalc(x)}));
+  const donors=overRows.filter(o=>o.overDays>=1&&o.over>0).sort((a,b)=>b.over-a.over);
+  const recips=overRows.filter(o=>o.deficit>0).sort((a,b)=>b.deficit-a.deficit).map(o=>({o,rem:o.deficit}));
+  const plan=donors.map(o=>{
+    let over=o.over;const swaps=[];
+    for(const rc of recips){if(over<=0)break;if(rc.rem<=0||rc.o.x.code===o.x.code)continue;const mv=Math.min(over,rc.rem);if(mv<500)continue;swaps.push({to:rc.o.x,mv,def:rc.o.deficit});over-=mv;rc.rem-=mv;}
+    return {o,swaps,residual:Math.round(over)};
+  });
+  return {plan,donors,recips,totOver:Math.round(donors.reduce((a,o)=>a+o.over,0))};
+}
+function exportOverorder(){
+  const {plan}=overorderPlan();
+  if(!plan.length){toast('No over-ordered POs');return;}
+  const cleanD=s=>String(s||'').replace(/^PK-A-?\s?CAN[- ]?/i,'');
+  const rows=plan.map(({o,swaps,residual})=>{
+    const openPOs=(o.x.pos||[]).map(p=>`${p.po} (${fmt(Math.round(p.qty))}${p.date?' due '+dstr(p.date):''})`).join('; ')||'none on file';
+    const rec=swaps.length
+      ? swaps.map(s=>`Swap ~${fmt(Math.round(s.mv))} toward ${s.to.code} ${cleanD(s.to.desc)} (short ${fmt(Math.round(s.def))})`).join('  |  ')
+        +(residual>500?`  |  Remaining ${fmt(residual)} not needed by any short can — cancel / reduce next DSC order`:'')
+      : `No short can needs it — safe to cancel or reduce next DSC order by ~${fmt(Math.round(o.over))}`;
+    const r={'Can #':o.x.code,'Description':cleanD(o.x.desc),'Goes into (finished goods)':o.x.fgTop||'',
+      'On hand':Math.round(o.x.onHand),'Daily use':Math.round(o.x.daily)};
+    r['Over '+state.gMaxDOS+'-day max (cans)']=Math.round(o.over);
+    r['Over (days)']=+o.overDays.toFixed(1);
+    r['Open POs (placed)']=openPOs;
+    r['Recommendation']=rec;
+    return r;
+  });
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:8},{wch:38},{wch:34},{wch:10},{wch:10},{wch:18},{wch:10},{wch:42},{wch:95}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Over-ordered & swaps');
+  XLSX.writeFile(wb,'Can_Overordered_Swaps_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Excel file downloaded');
+}
 function exportStale(){
   const rows=(state.stale||[]).map(s=>({
     'Can #':s.code,'Description':s.desc,'On hand':Math.round(s.onHand),'Days of supply':s.dos===Infinity?null:(s.daily>0?+(s.onHand/s.daily).toFixed(1):null),'PO #':s.p.po,'Open qty':Math.round(s.p.qty),
@@ -2672,6 +2917,7 @@ function exportLiveHTML(){
   const S={savedAt:new Date().toLocaleString(),
     stock:state.stock,pa:state.pa,po:state.po,count:state.count,dsc:state.dsc,dscTot:state.dscTot,
     swapDec:{pair:state.swapDec.pair||{},poNo:[...(state.swapDec.poNo||[])],declinedFor:state.swapDec.declinedFor||{}},
+    expDec:state.expDec||{},
     forecast:state.forecast,billMap:state.billMap,fgDesc:state.fgDesc,canDesc:state.canDesc,files:state.files,
     floor:[...state.floor],coman:[...state.coman],cust:[...state.cust],
     comanMin:state.comanMin,comanMax:state.comanMax,gMinDOS:state.gMinDOS,gIdealDOS:state.gIdealDOS,gMaxDOS:state.gMaxDOS,
@@ -2710,6 +2956,7 @@ $('#btnLiveHTML').onclick=exportLiveHTML;
         files:S.files||state.files,bandOverride:S.bandOverride||{},custBand:S.custBand||{},
         comanMin:S.comanMin!=null?S.comanMin:state.comanMin,comanMax:S.comanMax!=null?S.comanMax:state.comanMax,
         gMinDOS:S.gMinDOS!=null?S.gMinDOS:state.gMinDOS,gIdealDOS:S.gIdealDOS!=null?S.gIdealDOS:state.gIdealDOS,gMaxDOS:S.gMaxDOS!=null?S.gMaxDOS:state.gMaxDOS});
+      if(S.expDec){state.expDec={};for(const k in S.expDec){const e=S.expDec[k]||{};state.expDec[k]={dec:e.dec,newDate:e.newDate?new Date(e.newDate):null};}}
       state.swapDec={pair:(S.swapDec&&S.swapDec.pair)||{},poNo:new Set((S.swapDec&&S.swapDec.poNo)||[]),declinedFor:(S.swapDec&&S.swapDec.declinedFor)||{}};
       state.floor=new Set(S.floor||[]);state.coman=new Set(S.coman||[]);state.cust=new Set(S.cust||[]);
       if(S.settings)for(const id in S.settings){const el=document.getElementById(id);if(el&&S.settings[id]!=null&&S.settings[id]!=='')el.value=S.settings[id];}
@@ -2724,6 +2971,5 @@ $('#btnLiveHTML').onclick=exportLiveHTML;
 render();
 </script>
 <div class="balafoot" title="Built by Bala"><img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCABAAEADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD6pooooA5H4i/EfTPh9pqzXOJ72cEW9sGwXI6knso//VXhd7+0B41upWkgurS1j3bgkdqCAPTLZJrG+L+tXPib4l38TwFhaSm0iTk7UTgnHucn8afo3wn1XU1EtzNFb2x+6q8nFY1a8KfxM3o4apW+BHTaB+0P4gtpo01F7S+izucyRhHKjkgFeM46ZHUV9FadqFvqtjBfWriSC4jEiN6gjNfKOsfCSays53hu908al1Uj72O1evfs365cap4KubS5dnexuzEuf4VKggfnmijWjVV4sK+HqUWlNHrFFFFbGAUGig0AfMfibTYdH+KPiTUbxw1uJt+5Ru/1gDBePx/Kuq8OeMdB1aHybTVot0f3oypBWm3Wg2kGu6rpV/GCrSAHcOWU5Ib3znNRnw/4e0K9SQmzjLh282UKMZ7DivBxVSMpNtO59Tg6MqcFGLTjuU9a8ceHob77J/aDXFx0ZYlLYrtPgTpsWnWGvCIjbJqO4Dvt8tcHH41x9p4Y8PT2i3nlQnGfuAYfnOc++BXbfCyx8zVtT1GJSsCqtuD/AHm+UnnvjA/Ot8DOKlywT8zlzKlNwcqjWmx6VRRRXrngBRRRQB5l8adMmtrSz8S2q/8AHm3lXWB1iYjBPsG/LdXksU51yEXGreILiGAu3kx20TNtweAcd+9fRXjmyn1DwpqNvbqHkMYbYed4UglfxAIr5qvPC+o6UXm0i5zbSHeqc5UH+YrhxCgppvRnq4KVR03yq6XT+tyabVZ9Lf7FHqMl9FKm2GN0IdSTx+ea+kvBuht4d8NWOnybTOke6Zh/FI3LH35OPwr5q0jw3dNdi+uGMl0fkhX1c8D8cmvqiwhlt7K3hmffLHGqu395gACfzqsLyXfL95njvaWi56X2RPRRRXYecFFAooAqmS9aQAW0KpnlmlJJH0xXmOs+Dzo1zMCM2ckrNCw5CqTkL9RnFesVBd2VvewvDPGHRxtYGufE0FWjbqdmDxbw8+ZLTqcH4W8JW5vLbVLjG2Ft0Kd3YdCB7etd1ayXrrm4ggj5/hkLcflT7e0gtVAhjVcAL74HapqqhRVKHKiMViXXnzsKKM801+g+tbHMf//Z" alt="Bala"><span>Built by <b>Bala</b></span></div>
-
-
-</body></html>
+</body>
+</html>
