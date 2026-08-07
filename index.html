@@ -345,6 +345,23 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .stat-dos.warn{background:#fdf4dd;border-color:#eed79a;color:#9a6a00}
 .stat-dos.bad{background:#fde8e8;border-color:#f0b6b6;color:#b32020}
 .stat-floor{background:#e8f6ee;border-color:#a9dcbd;color:#177245}
+.sizefilt{display:flex;gap:4px;align-items:center}
+.szbtn{font-size:12px;font-weight:700;padding:7px 11px;border:1px solid var(--line);background:#fff;color:var(--dim);border-radius:9px;cursor:pointer;white-space:nowrap}
+.szbtn:hover{border-color:var(--blue)}
+.szbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.trackwrap{max-width:1120px;margin:0 auto;padding:6px 2px 34px}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:16px}
+.tcard{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:#fff;box-shadow:0 1px 6px rgba(23,52,78,.05)}
+.tcard .th{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.tcard .tv{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin:2px 0 8px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.tcard .td{font-size:11.5px;font-weight:800}
+.tcard .td.g{color:#177245}.tcard .td.b{color:#b32020}.tcard .td.n{color:var(--faint)}
+.tcard .tsub{font-size:10.5px;color:var(--faint);margin-top:6px}
+.trkbtns{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 4px}
+.trktable{width:100%;border-collapse:collapse;margin-top:24px;font-size:12.5px}
+.trktable th,.trktable td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.trktable th:first-child,.trktable td:first-child{text-align:left;font-weight:700}
+.trktable thead th{background:#f4f8fd;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
 @media(max-width:560px){.statstrip{grid-template-columns:1fr}}
 .act{font-size:13px;font-weight:800;padding:10px 14px;border-radius:9px;line-height:1.45}
 .a-red{background:var(--red-bg);color:var(--red);border:1px solid #f0b6b6}
@@ -473,6 +490,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <button class="ptab" id="tabPlan">🗓 Consumption Planner</button>
     <button class="ptab" id="tabOrders">📦 Order Schedule</button>
     <button class="ptab" id="tabCover">🛡️ Coverage Runway</button>
+    <button class="ptab" id="tabTrack">📸 Daily Tracker</button>
   </nav>
   <div class="sb-lbl">Export</div>
   <div class="sb-actions">
@@ -499,7 +517,12 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
   <div class="upnote">Click a tile or drop the file straight onto it — the board recalculates automatically after every upload. Forecast, BOM &amp; Can Inv Count are built in; replace them only when they change. Everything runs locally.</div>
 
   <div class="bar">
-    <div class="search"><input id="q" placeholder="search a can #, name, or finished-good code — filters every box…"></div>
+    <div class="search"><input id="q" placeholder="search a can #, name, or finished-good code — comma-separate for multiple — filters every box…"></div>
+    <div class="sizefilt" id="sizeFilt">
+      <button class="szbtn on" data-sz="all">All sizes</button>
+      <button class="szbtn" data-sz="big" title="~13oz / 13.5oz cans · pallet 1,900">🥫 13oz big</button>
+      <button class="szbtn" data-sz="sm" title="~6oz / 6.5oz cans · pallet 2,280">🥤 6oz small</button>
+    </div>
     <div class="custwrap"><button class="btn ghost" id="custBtn">👥 Customers: <b>All</b> ▾</button>
       <div class="custpanel" id="custPanel"></div></div>
     <div class="set">Lead <input id="setLT" type="number" value="28">d</div>
@@ -509,12 +532,11 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <div class="set" title="Global LOWER bound — days of supply to keep on hand for every can unless overridden">Min days <input id="setMinDOS" type="number" value="14">d</div>
     <div class="set" title="Global TARGET — order up to this many days of supply unless overridden">Ideal days <input id="setIdealDOS" type="number" value="45">d</div>
     <div class="set" title="Global UPPER bound — never build more than this many days of supply unless overridden">Max days <input id="setMaxDOS" type="number" value="60">d</div>
-    <div class="set">MOQ / multiple <input id="setMOQ" type="number" value="5000"></div>
+    <div class="set" title="Minimum order per can — every order is at least this, rounded up to whole pallets (big 1,900 · small 2,280)">MOQ (minimum) <input id="setMOQ" type="number" value="15200"></div>
     <div class="set">Min swap qty <input id="setMinSwap" type="number" value="20000"></div>
     <div class="set">Ignore POs overdue &gt; <input id="setStale" type="number" value="3">d</div>
     <div class="set">Ignore PO remnants &lt; <input id="setRemnant" type="number" value="5000"></div>
     <div class="set" title="DSC has committed the POs due on or before this date — they are frozen and won't be offered for swaps or adjustments">🔒 DSC locked thru <input id="setDscLock" type="date" style="width:140px"></div>
-    <div class="set" title="How many full trucks DSC can deliver per day — POs are spread across days so no single day exceeds this">🚚 DSC trucks/day <input id="setDscCap" type="number" value="3" style="width:56px"></div>
     <div class="set" id="hmPeriod" style="color:var(--faint)"></div>
   </div>
   <div class="bar floorbar">
@@ -544,6 +566,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
   <div id="planner" style="display:none"></div>
   <div id="orders" style="display:none"></div>
   <div id="coverage" style="display:none"></div>
+  <div id="tracker" style="display:none"></div>
   <div class="empty" id="empty"><b>Waiting for data</b>Upload Stock on Hand and Live PA to light up the board.</div>
 </div>
 </main>
@@ -593,7 +616,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <h3>PO builder rules</h3>
     <ul>
       <li>Every PO is one <b>full truck</b> (default <code>95,000</code> cans).</li>
-      <li>Every line is ≥ <b>MOQ 5,000</b> and always a <b>multiple of 5,000</b> — these rules are never broken.</li>
+      <li>Every line is <b>at least the MOQ</b> and a <b>whole number of pallets</b> — <b>big (13oz) = 1,900</b> per pallet, <b>small (6oz) = 2,280</b> per pallet. Partial pallets are never sent, orders never fall below the MOQ, and <b>only same-size cans share a truck</b>.</li>
       <li>Needs are packed in queue priority order; one item can span multiple POs, and one PO can mix items.</li>
       <li>A short final truck is <b>topped up by pulling next week's needs forward</b> (lines tagged PULLED FWD). If nothing can be pulled, the truck is marked PARTIAL — top it up or hold it.</li>
       <li><b>POs to place now</b> = contain items whose last order day is ≤ 2 days out; <b>next week</b> = 3–14 days.</li>
@@ -641,18 +664,34 @@ const addD=(d,n)=>new Date(d.getTime()+n*DAY);
 const dstr=d=>d?d.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
 const dlong=d=>d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'—';
 // search matches can #, description, AND finished-good codes/names
+function sizeOf(desc){
+  const m=String(desc||'').match(/(\d+(?:\.\d+)?)\s*oz/i);
+  const oz=m?parseFloat(m[1]):null;
+  if(oz==null)return {oz:null,size:null,pallet:null};
+  const size=oz<10?'sm':'big';                 // ~6/6.5oz = small, ~13/13.5oz = big
+  return {oz,size,pallet:size==='sm'?2280:1900}; // small pallet 2,280 · big pallet 1,900
+}
+function roundPallet(q,pallet,moq){
+  if(q<=0)return 0;
+  const floor=moq||0;
+  if(pallet)return Math.ceil(Math.max(q,floor)/pallet)*pallet; // at least the MOQ, always a whole number of pallets
+  return Math.max(floor||5000,Math.round(q));                   // fallback when size/pallet unknown
+}
 function matchRow(x,q){
+  const sf=state.sizeFilter||'all';
+  if(sf!=='all'){if(!x.size||x.size!==sf)return false;} // global 13oz-big / 6oz-small filter, applies everywhere
   if(!q)return true;
-  return (x.code||'').toLowerCase().includes(q)
-    ||(x.desc||'').toLowerCase().includes(q)
-    ||(x.fgFull||x.fgTop||'').toLowerCase().includes(q);
+  const s=String(q).toLowerCase();
+  const hay=((x.code||'')+' '+(x.desc||'')+' '+(x.fgFull||x.fgTop||'')).toLowerCase();
+  if(s.includes(',')){const toks=s.split(/[,;]+/).map(t=>t.trim()).filter(Boolean);return toks.some(t=>hay.includes(t));} // multi-select
+  return hay.includes(s);
 }
 
 const state={
   stock:null,pa:null,po:null,count:null,
   forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,
   files:{stock:null,pa:null,po:null,count:EMB.count?'built-in':null,dsc:null,swapdec:null,expdec:null,forecast:'built-in',bom:'built-in'},count:EMB.count||null,
-  rows:[],q:'',expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
+  rows:[],q:'',sizeFilter:'all',expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
 };
 
@@ -1012,7 +1051,8 @@ function dim(y,p){return new Date(y,p,0).getDate();}
 function compute(){
   const T=today();
   const LTdef=+$('#setLT').value||28,TRUCK=+$('#setTruck').value||95000,COV=+$('#setCov').value||45,BUF=+$('#setBuf').value||7,FLT=+$('#setFLT').value||7,MOQ=+$('#setMOQ').value||5000,MINSWAP=+$('#setMinSwap').value||20000,STALE=+$('#setStale').value||3,REMNANT=+$('#setRemnant').value||5000;
-  const rMult=q=>q<=0?0:Math.max(MOQ,Math.round(q)); // MOQ is a minimum floor, not a rounding multiple
+  const rMult=q=>q<=0?0:Math.max(MOQ,Math.round(q)); // fallback floor when size unknown
+  const rPallet=(q,p)=>roundPallet(q,p,MOQ);          // whole-pallet rounding (1,900 big · 2,280 small)
   const H=180;
   if(!state.stock){state.rows=[];render();return;}
   const per=T.getMonth(),Y=T.getFullYear();
@@ -1066,6 +1106,7 @@ function compute(){
   const allCans=new Set([...Object.keys(state.stock),...Object.keys(dem)]);
   for(const code of allCans){
     const st=state.stock[code]||{code,desc:state.canDesc[code]||('Can '+code),onHand:0,lt:null,supplier:'DS CONTAINERS',ns:'',ss:0,rc:0,onOrderSys:0};
+    const sz=sizeOf(st.desc);
     const cnt=state.count?state.count[code]:null;
     const counted=!!cnt;
     const onHand=counted?cnt.phys:st.onHand;
@@ -1096,10 +1137,7 @@ function compute(){
       if(di<0){overduePO+=p.qty;di=0;}
       if(di<H)arrivals[di]+=p.qty;
     }
-    let bal0=onHand,needDay=null;
-    for(let i=0;i<H;i++){bal0-=d[i];if(bal0<0){needDay=i;break;}}
-    let bal=onHand,runout=null;
-    for(let i=0;i<H;i++){bal+=arrivals[i]-d[i];if(bal<0&&runout==null)runout=i;}
+    // inventory band FIRST — needed for the Min-days safety floor below
     const coman=!!canComan[code];
     const ov=state.bandOverride[code]||{};
     // per-customer imported band (tightest wins across this can's customers)
@@ -1111,6 +1149,13 @@ function compute(){
     let bIdeal=ov.ideal!=null?ov.ideal:(custIdeal!=null?custIdeal:defIdeal);
     bIdeal=Math.min(Math.max(bIdeal,bMin),bMax); // keep ideal inside [min,max]
     const bandSrc=(ov.min!=null||ov.max!=null||ov.ideal!=null)?'can override':((custMin!=null||custMax!=null||custIdeal!=null)?'customer':(coman?'co-man default':'global default'));
+    // SAFETY FLOOR = Min days of supply (bMin × daily). Run-out = the day on-hand would fall to this floor — NOT zero —
+    // so a PO timed to it lands while you still hold the Min days on hand. You never dip below the Min-days band.
+    const safetyCans=daily>0?bMin*daily:0;
+    let bal0=onHand,needDay=null;
+    for(let i=0;i<H;i++){bal0-=d[i];if(bal0<safetyCans){needDay=i;break;}}
+    let bal=onHand,runout=null;
+    for(let i=0;i<H;i++){bal+=arrivals[i]-d[i];if(bal<safetyCans&&runout==null)runout=i;}
     const covWin=Math.max(1,Math.min(COV,bIdeal)); // order up to the IDEAL days of supply, capped by cover
     // raw shortfall from runout for covWin days (used for suggest AND quick-pull check)
     let rawNeed=0;
@@ -1127,15 +1172,18 @@ function compute(){
     const totDem=d.reduce((a,b)=>a+b,0);
     const active=totDem>1||onHand>0||incoming>0;
     const dos=daily>0?onHand/daily:(totDem>1?0:Infinity);
-    const needBy=needDay!=null?Math.max(0,needDay-BUF):null;
+    const needByOH=needDay!=null?Math.max(0,needDay-BUF):null;   // run dry from ON-HAND minus buffer (in-house-by target)
+    const needBy=runout!=null?Math.max(0,runout-BUF):null;        // run dry INCLUDING open POs — the real order-timing date
     const orderBy=needBy!=null?needBy-lt:null;
     const firstArr=pos.length?Math.max(0,Math.round(((pos[0].date||T)-T)/DAY)):null;
     let expedite=null;
-    if(needDay!=null&&pos.length&&firstArr!=null&&firstArr>needBy&&runout!=null){
-      expedite={po:pos[0],by:needBy,late:firstArr-needBy};
+    // only an expedite if on-hand runs dry BEFORE the first PO lands (a genuine stockout the PO is too late to prevent)
+    if(needDay!=null&&pos.length&&firstArr!=null&&firstArr>needDay&&runout!=null){
+      const eb=needByOH!=null?needByOH:0;
+      expedite={po:pos[0],by:eb,late:firstArr-eb};
     }
     let suggest=0,trucks=0;
-    if(runout!=null){suggest=rMult(rawNeed);trucks=suggest/TRUCK;}
+    if(runout!=null){suggest=rPallet(rawNeed,sz.pallet);trucks=suggest/TRUCK;}
     let cls,pr;
     const nsFlag=/stocked out|potential/i.test(st.ns);
     if(!active){cls='na';pr=9;}
@@ -1159,6 +1207,7 @@ function compute(){
     let bandMinCans=null,bandMaxCans=null,bandStatus=null;
     if(daily>0){bandMinCans=bMin*daily;bandMaxCans=bMax*daily;bandStatus=onHand<bandMinCans?'below':(onHand>bandMaxCans?'over':'in');}
     out.push({code,desc:st.desc,supplier:st.supplier,ns:st.ns,ss:st.ss,onHand,counted,cnt,sysOnHand:st.onHand,
+      oz:sz.oz,size:sz.size,pallet:sz.pallet,
       daily,dos,needDay,needBy,orderBy,runout,firstArr,incoming,overduePO,pos,suggest,trucks,lt,cls,pr,varFlag,
       expedite,active,totDem,fgTop,fgFull,paFirst,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll,
       demArr:d,arrArr:arrivals,
@@ -1226,33 +1275,33 @@ function compute(){
     if(!u.swapWith&&declined){u.swapDeclined=true;u.swapSkip='DSC declined the proposed swap and no other donor PO qualifies — need moved into the new-PO plan';}
   }
   state.swapDeclinedCount=queue.filter(u=>u.swapDeclined).length;
-  // ---- PO builder: priority-ranked, MOQ-respecting lines, DSC-capacity spread, dated ----
-  const DSCCAP=Math.max(1,+($('#setDscCap')||{}).value||3); // trucks DSC can deliver per day
+  // ---- PO builder: priority-ranked, whole-PALLET lines, size-separated trucks, dated ----
   const needs=[];
   for(const u of queue){
     if(u.cls==='exp')continue; // handled by expediting existing PO
+    const pal=u.pallet||MOQ;
     let remaining=u.suggest-(u.swapWith?Math.min(u.swapWith.p.qty,u.suggest):0);
-    remaining=remaining<=0?0:Math.max(MOQ,Math.round(remaining)); // MOQ = minimum floor
-    if(remaining<MOQ)continue;
-    needs.push({code:u.code,desc:u.desc,qty:remaining,orderBy:u.orderBy,needBy:(u.needBy==null?999:u.needBy),lead:u.lt||28,pa:u.paFirst?1:0,floor:u.floor,daily:u.daily,onHand:u.onHand});
+    remaining=remaining<=0?0:Math.ceil(remaining/pal)*pal; // whole pallets only — no partial pallet
+    if(remaining<pal)continue;
+    needs.push({code:u.code,desc:u.desc,qty:remaining,orderBy:u.orderBy,needBy:(u.needBy==null?999:u.needBy),lead:u.lt||28,pa:u.paFirst?1:0,floor:u.floor,daily:u.daily,onHand:u.onHand,size:u.size||null,pallet:pal});
   }
-  // priority: soonest need first, firm PA ahead of forecast, larger need first
   needs.sort((a,b)=>(a.needBy-b.needBy)||(b.pa-a.pa)||b.qty-a.qty);
-  // split each need into chunks that are each >= MOQ and <= TRUCK (prefer full trucks) — guarantees every line >= MOQ
-  const chunksOf=q=>{const out=[];while(q>0){if(q<=TRUCK){out.push(q);q=0;}else if(q-TRUCK>=MOQ){out.push(TRUCK);q-=TRUCK;}else{out.push(q-MOQ);q=MOQ;}}return out;};
+  const perTruckOf=pal=>Math.max(pal,Math.floor(TRUCK/pal)*pal); // whole pallets that fit in a 95,000 truck
+  const chunksOf=(q,pal)=>{const out=[];const pt=perTruckOf(pal);while(q>0){if(q<=pt){out.push(q);q=0;}else{out.push(pt);q-=pt;}}return out;};
   const fullTrucks=[],parts=[];
   for(const n of needs){
-    for(const c of chunksOf(n.qty)){
-      const line={code:n.code,desc:n.desc,qty:c,needBy:n.needBy,lead:n.lead,pa:n.pa,daily:n.daily,onHand:n.onHand};
-      if(c>=TRUCK)fullTrucks.push({lines:[line],total:c});else parts.push(line);
+    const pt=perTruckOf(n.pallet);
+    for(const c of chunksOf(n.qty,n.pallet)){
+      const line={code:n.code,desc:n.desc,qty:c,needBy:n.needBy,lead:n.lead,pa:n.pa,daily:n.daily,onHand:n.onHand,size:n.size,pallet:n.pallet};
+      if(c>=pt)fullTrucks.push({lines:[line],total:c,size:n.size,pallet:n.pallet});else parts.push(line);
     }
   }
-  // first-fit-decreasing: combine sub-truck parts into trucks (each part >= MOQ, so every line stays >= MOQ)
+  // combine sub-truck parts into trucks — ONLY same size together (small with small, big with big)
   parts.sort((a,b)=>b.qty-a.qty);
   const mixed=[];
   for(const p of parts){
-    let t=mixed.find(t=>TRUCK-t.total>=p.qty);
-    if(!t){t={lines:[],total:0};mixed.push(t);}
+    let t=mixed.find(t=>t.size===p.size&&(perTruckOf(t.pallet)-t.total)>=p.qty);
+    if(!t){t={lines:[],total:0,size:p.size,pallet:p.pallet};mixed.push(t);}
     t.lines.push(p);t.total+=p.qty;
   }
   let trucks=[...fullTrucks,...mixed];
@@ -1260,21 +1309,11 @@ function compute(){
     t.needBy=Math.min(...t.lines.map(l=>l.needBy));
     t.lead=Math.max(...t.lines.map(l=>l.lead));
     t.pa=t.lines.some(l=>l.pa)?1:0;
-    t.partial=t.total<TRUCK;
+    t.partial=t.total<perTruckOf(t.pallet||MOQ);
+    const earliest=t.lead;
+    t.arrive=Math.min(Math.max(t.needBy,earliest),180); // arrive by the need date — no per-day cap
+    t.placeBy=t.arrive-t.lead;
   }
-  // spread across DSC daily capacity: stagger arrivals EARLIER so no single day exceeds DSCCAP trucks
-  trucks.sort((a,b)=>(a.needBy-b.needBy)||(b.pa-a.pa)||(b.total-a.total));
-  const perDay={};
-  for(const t of trucks){
-    const earliest=t.lead;                                   // cannot arrive before lead days from today
-    const desired=Math.min(Math.max(t.needBy,earliest),180); // aim to arrive by need date
-    let d=desired;
-    while(d>earliest&&(perDay[d]||0)>=DSCCAP)d--;             // pull earlier to respect capacity
-    if((perDay[d]||0)>=DSCCAP){let e=desired;while(e<180&&(perDay[e]||0)>=DSCCAP)e++;d=e;}
-    perDay[d]=(perDay[d]||0)+1;
-    t.arrive=d;t.placeBy=d-t.lead;
-  }
-  // rank by scheduled arrival and label PO-1, PO-2 …
   trucks.sort((a,b)=>(a.arrive-b.arrive)||(b.pa-a.pa)||(b.total-a.total));
   trucks.forEach((t,i)=>t.id='PO-'+(i+1));
   state.poPlan={now:trucks,week:[]};
@@ -1306,11 +1345,14 @@ function whyOf(x){
     if(pd)li.push(`Live PA shows a firm sales order on <b>${pd.fg}</b> (${(pd.paCust||'').trim()}) shipping <b>${dstr(pd.paDate)}</b> that finished-goods stock cannot cover — production must run before then.`);
     else if(x.drivers.length&&x.drivers[0].start>0)li.push(`Finished-goods stock covers sales until about <b>${dstr(addD(T,x.drivers[0].start))}</b> (Live PA) — can consumption starts around then.`);
   }else li.push(`No active demand maps to this can right now.`);
-  if(x.needDay!=null){
-    li.push(`Without new supply the plant runs dry on <b>${dstr(addD(T,x.needDay))}</b>. With the <b>${BUF}-day production buffer</b>, cans must be in-house by <b>${dlong(addD(T,x.needBy))}</b>.`);
+  if(x.runout==null&&x.totDem>1){
+    li.push(`Current stock${x.incoming?' plus incoming POs':''} covers the full 180-day horizon — no new order needed yet.`);
+  }else if(x.runout!=null){
+    const poExtends=x.pos.length&&x.needDay!=null&&x.runout>x.needDay+1;
+    li.push(`Without a new order on-hand falls to your <b>${x.bMin}-day Min floor</b> on <b>${dstr(addD(T,x.runout))}</b>${poExtends?` — your on-hand alone would hit the floor ${dstr(addD(T,x.needDay))}, but the open PO carries you to then`:''}. With the <b>${BUF}-day production buffer</b>, the resupply must be in-house by <b>${dlong(addD(T,x.needBy))}</b> so you never drop below the Min days.`);
     if(x.orderBy!=null&&x.orderBy<=0)li.push(`DSC lead time is <b>${x.lt} days</b> — an order placed today lands ~<b>${dstr(addD(T,x.lt))}</b>, which is <b>${Math.max(0,-x.orderBy)} day(s) too late</b>. That is why this is urgent.`);
     else if(x.orderBy!=null)li.push(`With the <b>${x.lt}-day</b> DSC lead time, the last safe day to place the order is <b>${dlong(addD(T,x.orderBy))}</b>.`);
-  }else if(x.runout==null&&x.totDem>1)li.push(`Current stock${x.incoming?' plus incoming POs':''} covers the full 180-day horizon — no order needed yet.`);
+  }
   if(x.pos.length){
     const p=x.pos[0];
     li.push(`Open supply: <b>${fmt(x.incoming)} cans</b> on ${x.pos.length} PO line(s); first arrival PO <b>${p.po}</b> (${fmt(p.qty)}) due <b>${dstr(p.date)}</b>${x.overduePO?` — <b class="neg">${fmt(x.overduePO)} already overdue</b>, chase DSC`:''}.`);
@@ -1329,7 +1371,7 @@ function whyOf(x){
     li.push(`DSC is holding <b>${cur} cans</b> on their floor (Grand Total on hand)${x.quickPull?` — <b>covers the full need, so the ${+$('#setFLT').value||7}-day quick-turn lead is applied</b> instead of ${x.floor?'':'the standard '}${(x.floor?'':'28-day')} lead`:(x.suggest&&(x.dscOH||0)>0?' — covers part of the need; confirm the balance with DSC':'')}.`);
   }
   if(x.ns)li.push(`NetStock status: <b>${x.ns}</b>${x.ss?` · safety stock ${fmt(x.ss)} cans`:''}.`);
-  if(x.suggest)li.push(`Suggested buy: <b>${fmt(x.suggest)} cans (≈${x.trucks.toFixed(1)} trucks)</b> to cover ${+$('#setCov').value||45} days past run-out — at least the ${fmt(+$('#setMOQ').value||5000)}-can MOQ (a minimum, not rounded to multiples); cans are then combined to fill full ${fmt(+$('#setTruck').value||95000)}-can trucks in the PO builder.`);
+  if(x.suggest)li.push(`Suggested buy: <b>${fmt(x.suggest)} cans (≈${x.trucks.toFixed(1)} trucks)</b> to cover ${+$('#setCov').value||45} days past run-out${x.pallet?` — at least the <b>${fmt(+$('#setMOQ').value||15200)} MOQ</b>, rounded up to whole <b>${x.size==='sm'?'small (6oz)':'big (13oz)'}</b> pallets of ${fmt(x.pallet)} (no partial pallets)`:''}; only same-size cans share a truck when filling toward ${fmt(+$('#setTruck').value||95000)}.`);
   return li;
 }
 const plain=h=>h.replace(/<[^>]+>/g,'');
@@ -1541,7 +1583,8 @@ function orderSchedule(x){
   const H=180,daily=x.daily;
   if(daily<=0||!x.active)return [];
   const BUF=+$('#setBuf').value||7,MOQ=+$('#setMOQ').value||5000,TRUCK=+$('#setTruck').value||95000;
-  const rMOQ=q=>q<=0?0:Math.max(MOQ,Math.round(q)); // MOQ is a minimum floor, not a rounding multiple
+  const pal=x.pallet||0;
+  const rMOQ=q=>roundPallet(q,pal,MOQ); // whole pallets only (1,900 big · 2,280 small)
   const dem=x.demArr,lead=x.lt;
   const safety=x.bMin*daily;        // never fall below MIN days of supply
   const target=x.bIdeal*daily;      // order up to IDEAL days of supply
@@ -1560,7 +1603,7 @@ function orderSchedule(x){
     let qty=target-balAt;                 // bring up to IDEAL
     if(balAt+qty>ceil)qty=ceil-balAt;     // but never above MAX
     qty=rMOQ(qty);
-    if(qty<MOQ)qty=MOQ;
+    if(qty<(pal||MOQ))qty=(pal||MOQ);
     if(needBy<H)arrivals[needBy]+=qty;
     orders.push({placeBy,needBy,qty});
     if(orders.length>=18)break;
@@ -1794,21 +1837,79 @@ function exportCoverage(){
   toast('Coverage exported');
 }
 
+function spark(vals,color){
+  if(!vals.length)return '';
+  const w=280,h=62,pad=7;
+  const max=Math.max(1,...vals),min=Math.min(0,...vals),rng=(max-min)||1;
+  const pts=vals.map((v,i)=>{const x=pad+(vals.length===1?(w-2*pad)/2:(i/(vals.length-1))*(w-2*pad));const y=h-pad-((v-min)/rng)*(h-2*pad);return [x,y];});
+  const path=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=`<path d="${path} L ${pts[pts.length-1][0].toFixed(1)} ${(h-pad).toFixed(1)} L ${pts[0][0].toFixed(1)} ${(h-pad).toFixed(1)} Z" fill="${color}" opacity="0.12"/>`;
+  const dots=pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.3" fill="${color}"/>`).join('');
+  const last=pts[pts.length-1];
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block">${area}<path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>${dots}<circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3.6" fill="#fff" stroke="${color}" stroke-width="2"/></svg>`;
+}
+function renderTracker(){
+  const el=$('#tracker');
+  const track=[...trackerLoad()].sort((a,b)=>a.date<b.date?-1:1); // chronological
+  $('#hdMeta').textContent='Daily Tracker · '+track.length+' day'+(track.length===1?'':'s')+' captured';
+  const metrics=[
+    {k:'posToPlace',label:'POs to place',color:'#e0952a',lower:true},
+    {k:'expedites',label:'Expedites',color:'#e0952a',lower:true},
+    {k:'swaps',label:'Swaps',color:'#3a7d4d',lower:true},
+    {k:'overCans',label:'Over-ordered cans',color:'#b06d00',lower:true,big:true},
+    {k:'stockedOut',label:'Stocked out',color:'#b32020',lower:true},
+    {k:'talkDSC',label:'Talk to DSC',color:'#b32020',lower:true},
+  ];
+  const cards=metrics.map(m=>{
+    const vals=track.map(s=>+(s.metrics[m.k]||0));
+    const cur=vals.length?vals[vals.length-1]:0,first=vals.length?vals[0]:0,delta=cur-first;
+    const good=m.lower?delta<0:delta>0;const cls=delta===0?'n':(good?'g':'b');
+    const arrow=delta>0?'▲':(delta<0?'▼':'—');
+    const dtxt=track.length>1?`${arrow} ${m.big?fmt(Math.abs(delta)):Math.abs(delta)} since ${track[0].label||track[0].date}`:'first capture';
+    return `<div class="tcard"><div class="th">${m.label}</div>
+      <div class="tv" style="color:${m.color}">${m.big?fmt(cur):cur}<span class="td ${cls}">${dtxt}</span></div>
+      ${spark(vals,m.color)}
+      <div class="tsub">${track.length} capture(s)${track.length?` · ${track[0].label||track[0].date} → ${track[track.length-1].label||track[track.length-1].date}`:''}</div></div>`;
+  }).join('');
+  const tableRows=[...track].reverse().map(s=>`<tr><td>${s.label||s.date}</td><td>${s.metrics.activeCans}</td><td>${s.metrics.posToPlace}</td><td>${s.metrics.expedites}</td><td>${s.metrics.swaps}</td><td>${fmt(s.metrics.overCans||0)}</td><td>${s.metrics.stockedOut}</td><td>${s.metrics.talkDSC}</td></tr>`).join('');
+  el.innerHTML=`<div class="trackwrap">
+    <div class="secnote" style="margin-bottom:6px">Each <b>Capture today</b> (here or on the board) saves the day's counts and action lists <b>in this browser at this web address</b> — they stay put even when you push a new version of the dashboard to GitHub. The charts show how each callout is trending as you work the plan down. Re-capturing the same day overwrites it. Export to Excel or back up to a file to hand over past days or move to another machine.</div>
+    <div class="trkbtns">
+      <button class="btn" id="trkCap">📸 Capture today</button>
+      ${track.length?`<button class="btn ghost" id="trkExp">⬇ Export tracker (Excel)</button>`:''}
+      ${track.length?`<button class="btn ghost" id="trkBak">💾 Backup (file)</button>`:''}
+      <button class="btn ghost" id="trkRes">↥ Restore (file)</button>
+      ${track.length?`<button class="btn ghost" id="trkClr">🗑 Clear</button>`:''}
+      <input type="file" id="trkResFile" accept=".json,application/json" style="display:none">
+    </div>
+    ${track.length?`<div class="tgrid">${cards}</div>
+    <table class="trktable"><thead><tr><th>Day</th><th>Active cans</th><th>POs to place</th><th>Expedites</th><th>Swaps</th><th>Over-ordered</th><th>Stocked out</th><th>Talk to DSC</th></tr></thead><tbody>${tableRows}</tbody></table>`
+    :`<div class="empty" style="position:static;margin-top:30px"><b>No snapshots yet</b>Click 📸 Capture today to record today's picture, then capture again on future days to see the trend lines build.</div>`}
+  </div>`;
+  $('#trkCap').onclick=captureSnapshot;
+  const wire=(id,fn)=>{const b=$('#'+id);if(b)b.onclick=fn;};
+  wire('trkExp',exportTracker);wire('trkBak',trackerBackup);wire('trkClr',clearTracker);
+  wire('trkRes',()=>$('#trkResFile').click());
+  const rf=$('#trkResFile');if(rf)rf.onchange=e=>{if(e.target.files[0])trackerRestore(e.target.files[0]);e.target.value='';};
+}
 function render(){
   chips();
   const T=today();
   // ---- page routing: board / consumption planner / order schedule ----
   const page=state.page||'board';
-  const onPlan=page==='plan',onOrders=page==='orders',onCover=page==='coverage',onBoard=page==='board';
+  const onPlan=page==='plan',onOrders=page==='orders',onCover=page==='coverage',onTrack=page==='tracker',onBoard=page==='board';
   $('#tabBoard').classList.toggle('on',onBoard);
   $('#tabPlan').classList.toggle('on',onPlan);
   $('#tabOrders').classList.toggle('on',onOrders);
   $('#tabCover').classList.toggle('on',onCover);
+  $('#tabTrack').classList.toggle('on',onTrack);
   $('#planner').style.display=onPlan?'block':'none';
   $('#orders').style.display=onOrders?'block':'none';
   $('#coverage').style.display=onCover?'block':'none';
+  $('#tracker').style.display=onTrack?'block':'none';
   $('#pgrid').style.display=onBoard?'flex':'none';
   document.querySelectorAll('.floorbar,.comanbar').forEach(el=>el.style.display=onBoard?'flex':'none');
+  if(onTrack){renderTracker();$('#empty').style.display='none';return;}
   if(onPlan){
     renderPlanner();
     $('#empty').style.display=state.rows.length?'none':'block';
@@ -1834,6 +1935,9 @@ function render(){
   if(!state.rows.length){$('#pgrid').innerHTML='';$('#hdMeta').textContent='no data loaded';return;}
   const plan=state.poPlan||{now:[],week:[]};
   const allPOs=[...plan.now,...plan.week];
+  const baseCodes=new Set(base.map(x=>x.code));
+  const filterOn=!!(state.q||(state.sizeFilter&&state.sizeFilter!=='all')||state.cust.size);
+  const allPOsView=filterOn?allPOs.map(t=>{const lines=t.lines.filter(l=>baseCodes.has(l.code));return lines.length?{...t,lines,total:lines.reduce((a,l)=>a+l.qty,0)}:null;}).filter(Boolean):allPOs;
   const queue=(state.queue||[]).filter(match);
   const swapActions=queue.filter(x=>x.swapWith);
   const declined=queue.filter(x=>x.swapDeclined);
@@ -1874,7 +1978,7 @@ function render(){
   const {plan:overPlanArr,totOver:totOverCans,donors:overDonors}=overorderPlan();
   const strip=`<div class="strip">${custNote}
     <div class="stitem ${dscList.length?'s-red':''}" data-goto="dsc"><b>${dscList.length}</b>talk to DSC</div>
-    <div class="stitem ${allPOs.length?'s-org':''}" data-goto="orders"><b>${allPOs.length}</b>POs to place</div>
+    <div class="stitem ${allPOsView.length?'s-org':''}" data-goto="orders"><b>${allPOsView.length}</b>POs to place</div>
     <div class="stitem ${swapActions.length?'s-grn':''}" data-goto="swaps"><b>${swapActions.length}</b>POs to swap</div>
     <div class="stitem ${overDonors.length?'s-org':''}" data-goto="overord"><b>${overDonors.length}</b>over-ordered</div>
     <div class="stitem ${comanBelow?'s-red':(comanCansN?'s-grn':'')}" data-goto="coman"><b>${comanCansN}</b>co-man cans${comanBelow?` · ${comanBelow} low`:''}</div>
@@ -1889,14 +1993,14 @@ function render(){
     ${p.lines.map(l=>{const cov=l.daily>0?Math.round(l.qty/l.daily):null;const dosAfter=l.daily>0?Math.round((l.onHand+l.qty)/l.daily):null;
       return `<div class="scl" data-c="${l.code}"><span class="mono">${l.code}</span><span class="scd">${l.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}${declinedCodes.has(l.code)?' <span class="fromdec">⇄ swap declined by DSC → new PO</span>':''}${cov!=null?` <i class="cvdays">covers ~${cov}d · DOS after ≈ ${dosAfter}d</i>`:''}</span><span class="scq">${fmt(l.qty)}</span></div>`;}).join('')}
   </div>`;
-  const ordersBody=`${allPOs.length?`<div class="secnote">POs are <b>ranked by priority</b> (soonest need first) and each shows the date it must <b>arrive</b> and the date to <b>place</b> it. Every line is at least the <b>${fmt(MOQ)} MOQ</b>; trucks fill toward ${fmt(+$('#setTruck').value||95000)}. Arrivals are <b>spread across DSC capacity</b> (${Math.max(1,+($('#setDscCap')||{}).value||3)}/day) so no single day is overloaded. Beside each quantity: days it covers and the days-of-supply once it lands.</div>`:''}
-    <div class="cardcol">${allPOs.map(poCard).join('')||'<div class="emptyrow">No new POs needed — current stock, POs, swaps and expedites cover everything.</div>'}</div>
-    ${allPOs.length?`<button class="btn ghost secexp" data-x="plan">⬇ Export PO list</button>`:''}`;
+  const ordersBody=`${allPOsView.length?`<div class="secnote">POs are <b>ranked by priority</b> (soonest need first) and each shows the date it must <b>arrive</b> and the date to <b>place</b> it. Every line is <b>at least the MOQ (${fmt(MOQ)})</b> and a <b>whole number of pallets</b> (big/13oz = 1,900 · small/6oz = 2,280) — no partial pallets — and only <b>same-size cans share a truck</b>; trucks fill toward ${fmt(+$('#setTruck').value||95000)}. Beside each quantity: days it covers and the days-of-supply once it lands.</div>`:''}
+    <div class="cardcol">${allPOsView.map(poCard).join('')||'<div class="emptyrow">No new POs needed — current stock, POs, swaps and expedites cover everything.</div>'}</div>
+    ${allPOsView.length?`<button class="btn ghost secexp" data-x="plan">⬇ Export PO list</button>`:''}`;
 
   // ---- 2. POs to swap: before / after ----
   const swapCard=x=>{
     const s=x.swapWith;
-    const swQty=Math.min(s.p.qty,x.suggest);
+    const swQty=Math.min(s.p.qty,roundPallet(x.suggest,x.pallet,MOQ));
     const remain=s.p.qty-swQty;
     const keep=remain>=MOQ?remain:0;
     const newLines=[{code:x.code,desc:x.desc,qty:swQty+ (remain>0&&remain<MOQ?remain:0)}].concat(keep?[{code:s.code,desc:s.desc,qty:keep}]:[]);
@@ -2041,7 +2145,7 @@ function render(){
 
   $('#pgrid').innerHTML=strip
     +sec('dsc','📞','Talk to DSC — firm PA at risk','var(--red)',dscList.length,'cans',`current POs won't cover firm PA in time (${(+($('#setBuf')||{}).value||7)}d buffer)${noPOn?` · ${noPOn} no PO`:''}${latePOn>0?` · ${latePOn} PO too late`:''}${dscList.filter(x=>(x.orderBy??999)<=0).length?` · ${dscList.filter(x=>(x.orderBy??999)<=0).length} past due`:''}`,dscBody,dscList.length>0)
-    +sec('orders','📝','POs need to be ordered','var(--orange)',allPOs.length,'POs',`${fmt(allPOs.reduce((a,p)=>a+p.total,0))} cans · ${plan.now.length} today, ${plan.week.length} next week`,ordersBody,true)
+    +sec('orders','📝','POs need to be ordered','var(--orange)',allPOsView.length,'POs',`${fmt(allPOsView.reduce((a,p)=>a+p.total,0))} cans · ${allPOsView.length} PO(s)`,ordersBody,true)
     +sec('swaps','⇄','POs need to be swapped','var(--green)',swapActions.length,'swaps',`existing POs redirected to firm PA needs${swapActions.filter(x=>x.swapAlt).length?` · ${swapActions.filter(x=>x.swapAlt).length} alternative after NO`:''}${declined.length?` · ${declined.length} ✖ declined by DSC`:''}`,swapsBody,false)
     +sec('overord','⚖️','Over-ordered POs — remove or swap','#b06d00',overDonors.length,'cans',`${fmt(totOverCans)} cans past the ${state.gMaxDOS}-day max · reallocate with open POs`,overBody,overDonors.length>0)
     +sec('exped','⏩','POs to expedite','var(--orange)',expedites.length,'POs','arriving after the need-by date — pull in',expBody,true)
@@ -2424,7 +2528,7 @@ function openModal(code){
     }
     const bandTxt=(x.bMin!=null&&x.bMax!=null)?` Your policy: hold <b>${x.bMin}–${x.bMax} days</b>.`:'';
     const finalMsg=landed!=null
-      ? `The suggested order lands <b>after current stock has drawn down</b>, bringing days of supply back to about <b>${landed>=180?'180+':landed.toFixed(1)} days</b> — within your ${x.bMax!=null?x.bMax+'-day max':'band'}.${bandTxt}`
+      ? `The suggested order lands <b>after current stock has drawn down</b>, bringing days of supply back to about <b>${landed>=180?'180+':landed.toFixed(1)} days</b> — ${(x.bMax!=null&&landed>x.bMax+1)?`<b style="color:#b06d00">above your ${x.bMax}-day max</b>`:`within your ${x.bMax!=null?x.bMax+'-day max':'band'}`}.${bandTxt}`
       : `As each PO lands, on-hand days of supply is as shown above (stock draws down in between).${bandTxt}`;
     return `<div class="dosboost">
       <div class="db-h">⏱ How the incoming orders extend days of supply</div>
@@ -2451,7 +2555,7 @@ function openModal(code){
     <tr><td>Suggested buy</td><td>${x.suggest?fmt(x.suggest)+' (≈'+x.trucks.toFixed(1)+' trk)':'—'}</td></tr>
     ${x.bandStatus?`<tr><td>On-hand band</td><td class="${x.bandStatus==='below'?'neg':(x.bandStatus==='over'?'':'pos')}">${x.coman?`<b style="color:#2f5da8">🤝 ${x.comanCusts.join(', ')}</b> — `:''}hold ${x.bMin}–${x.bMax}d (${fmt(x.bandMinCans)}–${fmt(x.bandMaxCans)} cans)${x.bandStatus==='below'?' · BELOW MIN':(x.bandStatus==='over'?' · OVER MAX':' · in band')} · <span style="color:var(--faint)">${x.bandSrc}</span></td></tr>`:''}`;
   $('#modal').innerHTML=`
-    <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.fgTop?`<br>→ goes into: <b style="color:var(--ink)">${x.fgTop}</b>`:''}</div></div><button class="x" id="mx">✕</button></div>
+    <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${x.size?` · <b style="color:${x.size==='big'?'#2f5da8':'#0d8f6f'}">${x.size==='big'?'13oz BIG':'6oz SMALL'} · pallet ${fmt(x.pallet)}</b>`:''}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.fgTop?`<br>→ goes into: <b style="color:var(--ink)">${x.fgTop}</b>`:''}</div></div><button class="x" id="mx">✕</button></div>
     <div class="mbody">
       <div class="statstrip">
         <div class="statbox stat-oh">
@@ -2770,6 +2874,21 @@ function captureSnapshot(){
   render();
 }
 function clearTracker(){if(!confirm('Clear all captured snapshots? This cannot be undone.'))return;trackerSave([]);toast('Tracker cleared');render();}
+function trackerBackup(){
+  const data=trackerLoad();if(!data.length){toast('Nothing to back up yet');return;}
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Can_Tracker_Backup_'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();a.remove();toast('Tracker backup file downloaded');
+}
+function trackerRestore(file){
+  const rd=new FileReader();
+  rd.onload=()=>{try{const arr=JSON.parse(rd.result);if(!Array.isArray(arr))throw 0;
+    const byDate={};[...trackerLoad(),...arr].forEach(s=>{if(s&&s.date)byDate[s.date]=s;});
+    const merged=Object.values(byDate).sort((a,b)=>a.date<b.date?1:-1);
+    trackerSave(merged);toast('Tracker restored — '+merged.length+' day'+(merged.length>1?'s':''));render();
+  }catch(e){toast('That file isn\u2019t a valid tracker backup');}};
+  rd.readAsText(file);
+}
 function exportTracker(){
   const track=trackerLoad();if(!track.length){toast('Tracker is empty — capture a day first');return;}
   const wb=XLSX.utils.book_new();
@@ -2877,9 +2996,13 @@ document.addEventListener('drop',e=>e.preventDefault());
 $('#custBtn').onclick=e=>{e.stopPropagation();state.custOpen=!state.custOpen;custUI();};
 document.addEventListener('click',e=>{if(state.custOpen&&!e.target.closest('.custwrap')){state.custOpen=false;custUI();}});
 $('#q').oninput=e=>{state.q=e.target.value;render();};
+document.querySelectorAll('#sizeFilt .szbtn').forEach(b=>b.onclick=()=>{
+  state.sizeFilter=b.dataset.sz;
+  document.querySelectorAll('#sizeFilt .szbtn').forEach(x=>x.classList.toggle('on',x.dataset.sz===state.sizeFilter));
+  render();
+});
 ['setLT','setBuf','setTruck','setCov','setFLT','setMOQ','setMinSwap','setStale','setRemnant'].forEach(id=>$('#'+id).oninput=()=>compute());
 $('#setDscLock').onchange=()=>compute();
-$('#setDscCap').oninput=()=>compute();
 $('#setComanMin').oninput=()=>{state.comanMin=Math.max(0,+$('#setComanMin').value||0);compute();};
 $('#setMinDOS').oninput=()=>{state.gMinDOS=Math.max(0,+$('#setMinDOS').value||0);compute();};
 $('#setIdealDOS').oninput=()=>{state.gIdealDOS=Math.max(1,+$('#setIdealDOS').value||1);compute();};
@@ -2903,6 +3026,7 @@ $('#tabBoard').onclick=()=>{state.page='board';render();};
 $('#tabPlan').onclick=()=>{state.page='plan';render();};
 $('#tabOrders').onclick=()=>{state.page='orders';render();};
 $('#tabCover').onclick=()=>{state.page='coverage';render();};
+$('#tabTrack').onclick=()=>{state.page='tracker';render();};
 $('#helpx').onclick=$('#helpovl').onclick=()=>{$('#helpdrawer').classList.remove('show');$('#helpovl').classList.remove('show');};
 $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();});
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
@@ -2922,7 +3046,7 @@ function exportLiveHTML(){
     floor:[...state.floor],coman:[...state.coman],cust:[...state.cust],
     comanMin:state.comanMin,comanMax:state.comanMax,gMinDOS:state.gMinDOS,gIdealDOS:state.gIdealDOS,gMaxDOS:state.gMaxDOS,
     bandOverride:state.bandOverride,custBand:state.custBand,
-    settings:Object.fromEntries(['setLT','setBuf','setTruck','setCov','setMinDOS','setIdealDOS','setMaxDOS','setFLT','setMOQ','setMinSwap','setStale','setRemnant','setDscLock','setDscCap','setComanMin','setComanMax'].map(id=>[id,(document.getElementById(id)||{}).value])),
+    settings:Object.fromEntries(['setLT','setBuf','setTruck','setCov','setMinDOS','setIdealDOS','setMaxDOS','setFLT','setMOQ','setMinSwap','setStale','setRemnant','setDscLock','setComanMin','setComanMax'].map(id=>[id,(document.getElementById(id)||{}).value])),
     floorList:($('#floorList')||{}).value};
   const json=JSON.stringify(S,replacer).replace(/<\//g,'<\\/');
   const root=document.documentElement.cloneNode(true);
