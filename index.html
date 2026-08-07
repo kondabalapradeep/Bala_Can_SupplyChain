@@ -2910,8 +2910,13 @@ function overorderPlan(){
     if(!(x.daily>0)||!x.demArr)return {over:0,overDays:0,deficit:0};
     let bal=x.onHand,peak=x.onHand,trough=x.onHand;const H=x.demArr.length;
     for(let i=0;i<H;i++){bal+=(x.arrArr[i]||0)-(x.demArr[i]||0);if(bal>peak)peak=bal;if(bal<trough)trough=bal;}
-    const over=x.incoming>0?Math.max(0,Math.min(x.incoming,peak-x.bMax*x.daily)):0;
-    return {over,overDays:x.daily>0?over/x.daily:0,deficit:Math.max(0,-trough)};
+    const maxCans=x.bMax*x.daily, minCans=x.bMin*x.daily;
+    const excess=Math.max(0,peak-maxCans);     // how far the peak sits above the MAX band
+    const headroom=Math.max(0,trough-minCans); // how much can be removed before the trough would hit the MIN floor
+    // over-ordered = the incoming PO you can cancel and still stay within [Min, Max] all the way through.
+    // If the can dips to/below Min later (headroom 0), its POs are NEEDED — nothing is flagged as removable.
+    const over=x.incoming>0?Math.max(0,Math.min(x.incoming,excess,headroom)):0;
+    return {over,overDays:x.daily>0?over/x.daily:0,deficit:Math.max(0,minCans-trough)}; // short = below the MIN floor
   };
   const overRows=base.map(x=>({x,...overCalc(x)}));
   const donors=overRows.filter(o=>o.overDays>=1&&o.over>0).sort((a,b)=>b.over-a.over);
