@@ -121,6 +121,11 @@ header{background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:
 .secbody{border-top:1px solid var(--line);padding:14px 18px;background:#fbfdff}
 .secnote{font-size:11.5px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:12px}
 .cardcol{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px}
+.pocol{display:flex;flex-direction:column;gap:10px}
+.pocol .sch{flex-wrap:nowrap}
+.pocol .sch>span,.pocol .sch>b{white-space:nowrap;flex:0 0 auto}
+.pocol .sch .sctot{flex:0 0 auto}
+@media(max-width:640px){.pocol .sch{flex-wrap:wrap}}
 .secexp{margin-top:12px}
 .swlbl{font-size:9.5px;font-weight:800;letter-spacing:.12em;color:var(--faint);padding:7px 13px 2px}
 .swlbl.g{color:var(--green)} .swlbl.b{color:var(--blue)}
@@ -255,6 +260,8 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 @media(max-width:900px){.covkpis{grid-template-columns:repeat(3,1fr)}.covmain{grid-template-columns:40px 1fr;grid-auto-rows:auto}.crunway,.cverdict{grid-column:1/-1}.cverdict{text-align:left}}
 .scl .pull{font-style:normal;font-size:9.5px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:5px}
 .scarr{font-size:10px;font-weight:700;color:#2f7a3f;background:#eaf6ee;border:1px solid #bfe3cc;border-radius:5px;padding:1px 7px;margin-left:6px}
+.scneed{font-size:10px;font-weight:700;color:#2f5da8;background:#eaf2ff;border:1px solid #c4d8f2;border-radius:5px;padding:1px 7px;margin-left:6px}
+.scarr.late{color:#b06d00;background:#fdf4dd;border-color:#eed79a}
 .scl .cvdays{font-style:normal;font-size:10px;color:var(--faint);margin-left:6px;white-space:nowrap}
 .sec2{margin-left:auto;text-align:right;font-family:var(--mono);font-size:12px;color:var(--dim)}
 .sec2 b{display:block;font-size:15px;color:var(--ink)}
@@ -1093,24 +1100,38 @@ function compute(){
   const fgUse={};
   for(const fg in state.billMap){
     const f=state.forecast[fg];
-    let daily=0;
-    if(f){const a=f[per]/dim(Y,per+1),b=f[(per+1)%12]/dim(Y,((per+1)%12)+1);daily=(a+b)/2;}
     const pa=state.pa?state.pa[fg]:null;
     const CF=state.cust;
     const lines=pa?(CF.size?pa.lines.filter(l=>CF.has((l.cust||'').trim())):pa.lines):[];
     const linesQty=lines.reduce((a,l)=>a+l.qty,0);
-    if(daily<=0&&pa&&(CF.size?linesQty:pa.orders)>0)daily=(CF.size?linesQty:pa.orders)/28;
-    if(daily<=0)continue;
-    const qoh=pa?pa.qoh:0;
-    let coverF=Math.min(90,qoh/daily);
-    let paDay=null,paCust=null,paDate=null;
-    if(lines.length){
-      const ls=[...lines].filter(l=>l.date).sort((a,b)=>a.date-b.date);
-      let cum=0;
-      for(const l of ls){cum+=l.qty;if(cum>qoh){paDay=Math.max(0,Math.round((l.date-T)/DAY));paCust=l.cust;paDate=l.date;break;}}
+    // ---- per-DAY demand rate, distributed by fiscal PERIOD (varies month to month), with firm PA netted INTO the forecast ----
+    // For each fiscal period: demand = max(period forecast, firm PA in that period) — the forecast is the ceiling and the
+    // already-placed sales orders (PA) consume part of it; the remainder is unfirmed forecast. That period total is then
+    // spread evenly across the period's days (so a 5-week period spreads over 5 weeks, a 4-week over 4, a zero-forecast period = 0).
+    const rate=new Float64Array(H);let hasDemand=false,lastEo=-1,lastR=0;
+    for(let pi=0;pi<FISCAL26.length;pi++){
+      const P=FISCAL26[pi];if(P.ed<T)continue;
+      const so=Math.round((P.sd-T)/DAY),eo=Math.round((P.ed-T)/DAY);if(so>=H)break;
+      const fullDays=Math.round((P.ed-P.sd)/DAY)+1;
+      const periodFc=f?(+f[P.p-1]||0):0;                                   // this fiscal period's forecast
+      let periodPA=0;for(const l of lines){if(l.date&&l.date>=P.sd&&l.date<=P.ed)periodPA+=l.qty;}
+      const periodDemand=Math.max(periodFc,periodPA);                      // forecast is the ceiling; firm PA nets into it
+      const r=fullDays>0?periodDemand/fullDays:0;if(r>0)hasDemand=true;
+      for(let dd=Math.max(0,so);dd<=Math.min(H-1,eo);dd++)rate[dd]=r;
+      lastEo=Math.min(H-1,eo);lastR=r;
     }
-    const start=paDay!=null?Math.min(coverF,paDay):coverF;
-    fgUse[fg]={daily,start,coverF,paDay,paCust,paDate,qoh,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
+    if(lastEo>=0&&lastEo<H-1)for(let dd=lastEo+1;dd<H;dd++)rate[dd]=lastR;  // extend last known period's rate beyond the loaded calendar
+    if(!hasDemand&&pa&&(CF.size?linesQty:pa.orders)>0){const r=(CF.size?linesQty:pa.orders)/28;for(let dd=0;dd<28;dd++)rate[dd]=r;hasDemand=true;}
+    if(!hasDemand)continue;
+    let daily=0;for(let dd=0;dd<60;dd++)daily+=rate[dd];daily/=60;          // near-term (60-day) average rate for DOS / band
+    if(daily<=0)daily=rate.reduce((a,b)=>a+b,0)/H;
+    const qoh=pa?pa.qoh:0;
+    let sr=H,cum=0;for(let dd=0;dd<H;dd++){cum+=rate[dd];if(cum>=qoh){sr=dd;break;}}  // FG on-hand runway (days until FG stock is drawn down)
+    let paDay=null,paCust=null,paDate=null;
+    if(lines.length){const ls=[...lines].filter(l=>l.date).sort((a,b)=>a.date-b.date);let c=0;for(const l of ls){c+=l.qty;if(c>qoh){paDay=Math.max(0,Math.round((l.date-T)/DAY));paCust=l.cust;paDate=l.date;break;}}}
+    const coverF=Math.min(90,daily>0?qoh/daily:0);
+    const start=paDay!=null?Math.min(sr,paDay):sr;
+    fgUse[fg]={rate,daily,start,coverF,paDay,paCust,paDate,qoh,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
   }
   const dem={},drivers={};
   for(const fg in fgUse){
@@ -1118,9 +1139,8 @@ function compute(){
     for(const comp of state.billMap[fg]){
       const arr=dem[comp.can]=dem[comp.can]||new Float64Array(H);
       const s=Math.max(0,Math.floor(u.start)||0);
-      const rate=u.daily*comp.qty;
-      for(let d=s;d<H;d++)arr[d]+=rate;
-      (drivers[comp.can]=drivers[comp.can]||[]).push({fg,rate,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch});
+      for(let d=s;d<H;d++)arr[d]+=u.rate[d]*comp.qty;   // per-day rate (varies by period) × cans-per-case
+      (drivers[comp.can]=drivers[comp.can]||[]).push({fg,rate:u.daily*comp.qty,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch});
     }
   }
   // ---- co-manufacturing customers: map cans -> customers, flag co-man cans ----
@@ -2035,12 +2055,12 @@ function render(){
 
   // ---- 1. POs to place ----
   const poCard=p=>`<div class="scard ${p.partial?'partial':''}">
-    <div class="sch"><b>${p.id}</b><span class="scby">${p.placeBy<=0?'place TODAY':'place by '+dstr(addD(T,p.placeBy))}</span><span class="scarr">🚚 arrive by ${dstr(addD(T,p.arrive))}</span><span class="sctot">${fmt(p.total)} cans${p.partial?' · PARTIAL TRUCK':''}</span></div>
+    <div class="sch"><b>${p.id}</b><span class="scby">${p.placeBy<=0?'place TODAY':'place by '+dstr(addD(T,p.placeBy))}</span><span class="scneed">📌 needed by ${dstr(addD(T,p.needBy))}</span><span class="scarr ${p.arrive>p.needBy?'late':''}">🚚 arrive by ${dstr(addD(T,p.arrive))}${p.arrive>p.needBy?` · ${p.arrive-p.needBy}d late — expedite`:''}</span><span class="sctot">${fmt(p.total)} cans${p.partial?' · PARTIAL TRUCK':''}</span></div>
     ${p.lines.map(l=>{const cov=l.daily>0?Math.round(l.qty/l.daily):null;const dosAfter=l.daily>0?Math.round((l.onHand+l.qty)/l.daily):null;
       return `<div class="scl" data-c="${l.code}"><span class="mono">${l.code}</span><span class="scd">${l.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}${declinedCodes.has(l.code)?' <span class="fromdec">⇄ swap declined by DSC → new PO</span>':''}${cov!=null?` <i class="cvdays">covers ~${cov}d · DOS after ≈ ${dosAfter}d</i>`:''}</span><span class="scq">${fmt(l.qty)}</span></div>`;}).join('')}
   </div>`;
-  const ordersBody=`${allPOsView.length?`<div class="secnote">POs are <b>ranked by priority</b> (soonest need first) and each shows the date it must <b>arrive</b> and the date to <b>place</b> it. Every line is <b>at least the MOQ (${fmt(MOQ)})</b> and a <b>whole number of pallets</b> (big/13oz = 1,900 · small/6oz = 2,280) — no partial pallets — and only <b>same-size cans share a truck</b>; trucks fill toward ${fmt(+$('#setTruck').value||95000)}. Beside each quantity: days it covers and the days-of-supply once it lands.</div>`:''}
-    <div class="cardcol">${allPOsView.map(poCard).join('')||'<div class="emptyrow">No new POs needed — current stock, POs, swaps and expedites cover everything.</div>'}</div>
+  const ordersBody=`${allPOsView.length?`<div class="secnote">POs are <b>ranked by priority</b> (soonest need first). Each shows the date to <b>place</b> it, the date the cans are <b>needed by</b> (to stay above your Min days), and the date it will <b>arrive</b> at DSC's standard ${(+$('#setLT').value||28)}-day lead. If arrive is after needed-by, it's flagged <b>late — request an expedite or pull DSC floor stock</b>. Every line is <b>at least the MOQ (${fmt(MOQ)})</b> and a <b>whole number of pallets</b> (big/13oz = 1,900 · small/6oz = 2,280) — no partial pallets — and only <b>same-size cans share a truck</b>; trucks fill toward ${fmt(+$('#setTruck').value||95000)}.</div>`:''}
+    <div class="pocol">${allPOsView.map(poCard).join('')||'<div class="emptyrow">No new POs needed — current stock, POs, swaps and expedites cover everything.</div>'}</div>
     ${allPOsView.length?`<button class="btn ghost secexp" data-x="plan">⬇ Export PO list</button>`:''}`;
 
   // ---- 2. POs to swap: before / after ----
@@ -2570,7 +2590,8 @@ function openModal(code){
       landDay=x.needBy!=null?Math.max(0,x.needBy):Math.max(0,(x.orderBy!=null?x.orderBy+x.lt:x.lt));
       const b=Math.max(0,balAt(Math.min(landDay,H)))+x.suggest; // lands after current stock has run down
       landed=b/daily;
-      rows.push(`<div class="db-row sug"><span>+ Suggested order · ${fmt(x.suggest)} lands ~${dstr(addD(T,landDay))}</span><b>on hand ${fmt(Math.round(b))} → ${landed.toFixed(1)} days</b></div>`);
+      const placeBy=x.orderBy!=null?(x.orderBy<=0?'today':dstr(addD(T,x.orderBy))):dstr(addD(T,Math.max(0,landDay-(x.lt||0))));
+      rows.push(`<div class="db-row sug"><span>+ Suggested order · ${fmt(x.suggest)} · <b>place by ${placeBy}</b> → arrives ~${dstr(addD(T,landDay))}</span><b>on hand ${fmt(Math.round(b))} → ${landed.toFixed(1)} days</b></div>`);
     }
     const bandTxt=(x.bMin!=null&&x.bMax!=null)?` Your policy: hold <b>${x.bMin}–${x.bMax} days</b>.`:'';
     const finalMsg=landed!=null
@@ -2823,7 +2844,11 @@ function exportPlan(){
     const cov=l.daily>0?Math.round(l.qty/l.daily):null;
     const dosAfter=l.daily>0?Math.round((l.onHand+l.qty)/l.daily):null;
     rows.push({
-      'PO':p.id,'Place by':p.placeBy<=0?'TODAY':dstr(addD(T,p.placeBy)),'Arrive by':p.arrive!=null?dstr(addD(T,p.arrive)):'',
+      'PO':p.id,'Place by':p.placeBy<=0?'TODAY':dstr(addD(T,p.placeBy)),
+      'Needed by (Min floor)':p.needBy!=null?dstr(addD(T,p.needBy)):'',
+      'Arrive by (std lead)':p.arrive!=null?dstr(addD(T,p.arrive)):'',
+      'Days late':p.arrive!=null&&p.needBy!=null&&p.arrive>p.needBy?(p.arrive-p.needBy):0,
+      'Action if late':p.arrive>p.needBy?'Expedite or pull DSC floor stock':'On time',
       'Line':i+1,'Can #':l.code,'Description':l.desc,'Qty':l.qty,
       'Days this order covers':cov,'DOS after it lands':dosAfter,
       'Demand source':l.pa?'PA firm order':'Forecast',
@@ -2834,7 +2859,7 @@ function exportPlan(){
   add(plan.now);add(plan.week);
   if(!rows.length){toast('No POs in the plan');return;}
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[{wch:8},{wch:11},{wch:11},{wch:5},{wch:8},{wch:38},{wch:10},{wch:14},{wch:14},{wch:14},{wch:10},{wch:9},{wch:95}];
+  ws['!cols']=[{wch:8},{wch:11},{wch:15},{wch:15},{wch:9},{wch:26},{wch:5},{wch:8},{wch:38},{wch:10},{wch:14},{wch:14},{wch:14},{wch:10},{wch:9},{wch:95}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'PO Plan');
   XLSX.writeFile(wb,'Can_PO_Plan_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Excel file downloaded');
 }
