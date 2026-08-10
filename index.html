@@ -731,8 +731,8 @@ function matchRow(x,q){
 const state={
   stock:null,pa:null,po:null,count:null,
   forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,
-  files:{stock:null,pa:null,po:null,count:EMB.count?'built-in':null,dsc:null,swapdec:null,expdec:null,forecast:'built-in',bom:'built-in'},count:EMB.count||null,
-  rows:[],q:'',sizeFilter:'all',expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
+  files:{stock:null,pa:null,po:null,count:EMB.count?'built-in':null,dsc:null,swapdec:null,expdec:null,trans:null,forecast:'built-in',bom:'built-in'},count:EMB.count||null,
+  rows:[],q:'',sizeFilter:'all',expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},transitions:[],swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
 };
 
@@ -772,6 +772,7 @@ function detect(wb){
   for(const sn of wb.SheetNames){
     const r0=rws(wb.Sheets[sn]);
     const h=(r0[0]||[]).map(x=>String(x||'').trim().toLowerCase());
+    if(h.some(x=>x.includes('old')&&x.includes('can'))&&h.some(x=>x.includes('new')&&x.includes('can')))return 'trans';
     if(h.some(x=>x.includes('expedite'))&&h.some(x=>x.includes('new')&&(x.includes('arriv')||x.includes('date'))))return 'expdec';
     if(h.some(x=>x.includes('decision'))&&h.some(x=>x.includes('existing po')||x.includes('switch to')))return 'swapdec';
   }
@@ -924,6 +925,33 @@ function parsePA(wb){
     }
   }
   return fg;
+}
+function parseTransitions(wb){
+  // Item transitions: each row maps an FG's OLD CAN CODE -> NEW CAN CODE. When "ready for order" is YES, demand is redirected to the new can.
+  for(const sn of wb.SheetNames){
+    const r=rws(wb.Sheets[sn]);
+    const h=(r[0]||[]).map(x=>String(x||'').trim().toLowerCase());
+    const iOld=h.findIndex(x=>x.includes('old')&&x.includes('can'));
+    const iNew=h.findIndex(x=>x.includes('new')&&x.includes('can'));
+    if(iOld<0||iNew<0)continue;
+    const iFg=h.findIndex(x=>x.includes('item code')||x.includes('fg'));
+    const iDesc=h.findIndex(x=>x.includes('description'));
+    const iType=h.findIndex(x=>x.includes('type')&&x.includes('trans'));
+    const iReady=h.findIndex(x=>x.includes('ready'));
+    const iOrd=h.findIndex(x=>x.includes('order placed')||(x.includes('placed')));
+    const norm=c=>{c=String(c==null?'':c).trim();if(/^\d{5}\.0$/.test(c))c=c.slice(0,5);return c;};
+    const out=[];
+    for(let i=1;i<r.length;i++){
+      const oldC=norm(r[i][iOld]),newC=norm(r[i][iNew]);
+      if(!/^12\d{3}$/.test(oldC)&&!/^12\d{3}$/.test(newC))continue;
+      const ready=iReady>=0?/^y/i.test(String(r[i][iReady]||'').trim()):true;
+      const ordered=iOrd>=0?/^y/i.test(String(r[i][iOrd]||'').trim()):false;
+      out.push({fg:iFg>=0?String(r[i][iFg]||'').trim():'',desc:iDesc>=0?String(r[i][iDesc]||'').trim():'',
+        oldCan:oldC,newCan:newC,type:iType>=0?String(r[i][iType]||'').trim():'',ready,ordered});
+    }
+    return out.length?out:null;
+  }
+  return null;
 }
 function parseExpedite(wb){
   // Expedite decision file: one row per PO — "Can expedite? (YES/NO)" + "New arrival date". YES with a date pulls that PO's arrival in.
@@ -1133,14 +1161,23 @@ function compute(){
     const start=paDay!=null?Math.min(sr,paDay):sr;
     fgUse[fg]={rate,daily,start,coverF,paDay,paCust,paDate,qoh,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
   }
+  // ---- item transitions: redirect demand from an OLD can to its NEW can (when ready for order) ----
+  const transByOld={},transByNew={};
+  for(const tr of (state.transitions||[])){
+    if(tr.oldCan)transByOld[tr.oldCan]=tr;
+    if(tr.newCan)transByNew[tr.newCan]=tr;
+  }
   const dem={},drivers={};
   for(const fg in fgUse){
     const u=fgUse[fg];
     for(const comp of state.billMap[fg]){
-      const arr=dem[comp.can]=dem[comp.can]||new Float64Array(H);
+      let targetCan=comp.can, movedFrom=null;
+      const tr=transByOld[comp.can];
+      if(tr&&tr.ready&&tr.newCan){targetCan=tr.newCan;movedFrom=comp.can;} // demand moves to the new can
+      const arr=dem[targetCan]=dem[targetCan]||new Float64Array(H);
       const s=Math.max(0,Math.floor(u.start)||0);
       for(let d=s;d<H;d++)arr[d]+=u.rate[d]*comp.qty;   // per-day rate (varies by period) × cans-per-case
-      (drivers[comp.can]=drivers[comp.can]||[]).push({fg,rate:u.daily*comp.qty,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch});
+      (drivers[targetCan]=drivers[targetCan]||[]).push({fg,rate:u.daily*comp.qty,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch,transFrom:movedFrom});
     }
   }
   // ---- co-manufacturing customers: map cans -> customers, flag co-man cans ----
@@ -1262,6 +1299,10 @@ function compute(){
     if(daily>0){bandMinCans=bMin*daily;bandMaxCans=bMax*daily;bandStatus=onHand<bandMinCans?'below':(onHand>bandMaxCans?'over':'in');}
     out.push({code,desc:st.desc,supplier:st.supplier,ns:st.ns,ss:st.ss,onHand,counted,cnt,sysOnHand:st.onHand,
       oz:sz.oz,size:sz.size,pallet:sz.pallet,
+      transTo:transByOld[code]?transByOld[code].newCan:null,transToReady:transByOld[code]?!!transByOld[code].ready:false,
+      transFrom:transByNew[code]?transByNew[code].oldCan:null,
+      transType:(transByOld[code]||transByNew[code])?(transByOld[code]||transByNew[code]).type:null,
+      transFg:(transByOld[code]||transByNew[code])?(transByOld[code]||transByNew[code]).fg:null,
       daily,dos,needDay,needBy,orderBy,runout,firstArr,incoming,overduePO,pos,suggest,trucks,lt,cls,pr,varFlag,
       expedite,active,totDem,fgTop,fgFull,paFirst,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll,
       demArr:d,arrArr:arrivals,
@@ -2196,6 +2237,22 @@ function render(){
         <span class="sum" style="color:${p.col}">${secx.b||''}</span></div></div>`;}).join('')}</div>`;
 
   state.snapCounts={swaps:swapActions.length,talkDSC:dscList.length};
+  // ---- item transitions panel ----
+  const transList=(state.transitions||[]).map(tr=>{
+    const nr=state.rows.find(r=>r.code===tr.newCan),orow=state.rows.find(r=>r.code===tr.oldCan);
+    return {...tr,newDaily:nr?nr.daily:0,newDesc:nr?nr.desc:'',oldDesc:orow?orow.desc:'',newOnHand:nr?nr.onHand:0};
+  });
+  const transActive=transList.filter(t=>t.ready).length;
+  const transBody=`<div class="secnote">Cans being <b>transitioned to a new can</b>. When <b>Ready for order = YES</b>, the finished-good's demand is <b>moved to the new can</b> (so the plan orders the new one) and the old can shows no forward demand. Drop the transitions file any time — it's optional and updates instantly.</div>
+    ${transList.length?transList.map(tr=>{
+      const active=tr.ready;
+      return `<div class="ovrow">
+        <div class="ov1"><span class="ovcan"><span class="mono">${tr.oldCan}</span> <span style="color:var(--faint)">→</span> <span class="mono" style="color:#177245">${tr.newCan}</span></span>
+          <span class="ovamt">${tr.fg?tr.fg+' · ':''}${tr.type||'transition'} · ${active?'<b style="color:#177245">ready — demand moved</b>':'<b style="color:#b06d00">not ready — demand stays on old can</b>'}${tr.ordered?' · <b>order placed</b>':''}</span></div>
+        <div class="ovpos">${tr.desc||tr.newDesc||''}</div>
+        ${active&&tr.newDaily>0?`<div class="ovswap">New can <b>${tr.newCan}</b> now carries ~<b>${fmt(Math.round(tr.newDaily))}</b> cans/day of demand · on hand ${fmt(Math.round(tr.newOnHand))}</div>`:''}
+      </div>`;
+    }).join(''):'<div class="emptyrow">No item transitions loaded — drop a transitions file (old→new can) to redirect demand automatically.</div>'}`;
   // ---- daily tracker (capture / recall) ----
   const track=trackerLoad();
   const trackerBody=`<div class="secnote">Snapshot today's action lists and counts so you can answer <b>"what did I tell them on &lt;date&gt;?"</b> later. <b>Capture today</b> saves today's picture in this browser; re-capturing overwrites the same day. Export the whole tracker to Excel any time to hand over past days' data points.</div>
@@ -2220,6 +2277,7 @@ function render(){
     +sec('coman','🤝','Co-manufacturing — inventory band','#2f5da8',comanCans.length,'cans',`held to ${state.comanMin}–${state.comanMax} days · ${comanCans.filter(x=>x.bandStatus==='below').length} below min, ${comanCans.filter(x=>x.bandStatus==='over').length} over max`,comanBody,comanCans.some(x=>x.bandStatus==='below'))
     +sec('ignored','🗑','Ignored POs — stale & short-ships','var(--faint)',stale.length,'lines',`${fmt(stale.reduce((a,s)=>a+s.p.qty,0))} cans of dead supply to clear`,staleBody,false)
     +sec('status','📦','All cans by status','var(--blue)',base.length,'cans','stocked out · order timing · variances · covered',statusBody,false)
+    +(transList.length?sec('trans','🔄','Item transitions — demand moved to new can','#2f5da8',transActive,'active',`${transList.length} mapped · ${transActive} ready → demand on new can`,transBody,false):'')
     +sec('tracker','📸','Daily tracker — capture & recall','#2f5da8',track.length,'days','snapshot today so you can answer questions about past days later',trackerBody,false);
 
   // wiring
@@ -2249,6 +2307,7 @@ const SLOTS=[
   ['dsc','🏭','DSC Floor Stock','DSC on-hand per can · optional',false],
   ['swapdec','✅','Swap Decisions','DSC yes/no template · re-upload',false],
   ['expdec','⏩','Expedite Decisions','DSC yes/no + new date · re-upload',false],
+  ['trans','🔄','Item Transitions','old→new can · optional · redirects demand',false],
   ['forecast','📈','Forecast','built-in · optional update',false],
   ['bom','🧩','BOM','built-in · optional update',false],
 ];
@@ -2260,6 +2319,7 @@ function removeFile(k){
   else if(k==='dsc'){state.dsc=null;state.dscTot=null;}
   else if(k==='swapdec'){state.swapDec={pair:{},poNo:new Set(),declinedFor:{}};}
   else if(k==='expdec'){state.expDec={};state.files.expdec=null;}
+  else if(k==='trans'){state.transitions=[];state.files.trans=null;}
   else if(k==='forecast'){state.forecast=EMB.forecast;}
   else if(k==='bom'){state.billMap=EMB.billMap;state.canDesc=EMB.canDesc;}
   state.files[k]=(k==='forecast'||k==='bom'||(k==='count'&&EMB.count))?'built-in':null;
@@ -2526,6 +2586,7 @@ async function handleFiles(list){
         }
         else alert(`Couldn't read decisions from "${f.name}" — keep the template's columns.`);
       }
+      else if(t==='trans'){const tr=parseTransitions(wb);if(tr){state.transitions=tr;state.files.trans=f.name;names.push('Item Transitions');}else alert(`Couldn't read old/new can columns in "${f.name}".`);}
       else if(t==='expdec'){const e=parseExpedite(wb);if(e){state.expDec=e;state.files.expdec=f.name;names.push('Expedite Decisions');}else alert(`Couldn't read expedite decisions in "${f.name}".`);}
       else if(t==='dsc'){
         const pv=parseDSCPivot(wb);
@@ -2622,7 +2683,7 @@ function openModal(code){
     <tr><td>Suggested buy</td><td>${x.suggest?fmt(x.suggest)+' (≈'+x.trucks.toFixed(1)+' trk)':'—'}</td></tr>
     ${x.bandStatus?`<tr><td>On-hand band</td><td class="${x.bandStatus==='below'?'neg':(x.bandStatus==='over'?'':'pos')}">${x.coman?`<b style="color:#2f5da8">🤝 ${x.comanCusts.join(', ')}</b> — `:''}hold ${x.bMin}–${x.bMax}d (${fmt(x.bandMinCans)}–${fmt(x.bandMaxCans)} cans)${x.bandStatus==='below'?' · BELOW MIN':(x.bandStatus==='over'?' · OVER MAX':' · in band')} · <span style="color:var(--faint)">${x.bandSrc}</span></td></tr>`:''}`;
   $('#modal').innerHTML=`
-    <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${x.size?` · <b style="color:${x.size==='big'?'#2f5da8':'#0d8f6f'}">${x.size==='big'?'13oz BIG':'6oz SMALL'} · pallet ${fmt(x.pallet)}</b>`:''}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.fgTop?`<br>→ goes into: <b style="color:var(--ink)">${x.fgTop}</b>`:''}</div></div><button class="x" id="mx">✕</button></div>
+    <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${x.size?` · <b style="color:${x.size==='big'?'#2f5da8':'#0d8f6f'}">${x.size==='big'?'13oz BIG':'6oz SMALL'} · pallet ${fmt(x.pallet)}</b>`:''}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.transFrom?` · <b style="color:#2f5da8">🔄 NEW transition can (replaces ${x.transFrom})</b>`:''}${x.transTo?` · <b style="color:#b06d00">🔄 OLD transition can${x.transToReady?' — demand moved to '+x.transTo:' → '+x.transTo+' (not yet ready)'}</b>`:''}${x.fgTop?`<br>→ goes into: <b style="color:var(--ink)">${x.fgTop}</b>`:''}</div></div><button class="x" id="mx">✕</button></div>
     <div class="mbody">
       <div class="statstrip">
         <div class="statbox stat-oh">
