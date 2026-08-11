@@ -356,6 +356,8 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .szbtn{font-size:12px;font-weight:700;padding:7px 11px;border:1px solid var(--line);background:#fff;color:var(--dim);border-radius:9px;cursor:pointer;white-space:nowrap}
 .szbtn:hover{border-color:var(--blue)}
 .szbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.canlink{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.canlink:hover{color:var(--blue);text-decoration-style:solid}
 .nshead{display:grid;grid-template-columns:220px 1fr 180px;gap:18px;padding:8px 16px;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line);position:sticky;top:0;background:#f7fafd;z-index:2}
 .nshead .r{text-align:right}
 .nsrow{border-bottom:1px solid var(--line)}
@@ -1591,11 +1593,11 @@ function renderPlanner(){
       for(const rc of recips){if(over<=0)break;if(rc.rem<=0)continue;const mv=Math.min(over,rc.rem);if(mv<500)continue;swaps.push({to:rc.d,mv});over-=mv;rc.rem-=mv;}
       const posTxt=(don.x.pos||[]).length?don.x.pos.slice(0,3).map(p=>`PO ${p.po} ${fmt(p.qty)}${p.date?' due '+dstr(p.date):''}`).join(' · '):'no open PO lines on file';
       const swapTxt=swaps.length
-        ? swaps.map(s=>`\u21c4 swap ~<b>${fmt(Math.round(s.mv))}</b> toward <b>${s.to.x.code}</b> ${s.to.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'').slice(0,26)} (short ${fmt(Math.round(s.to.deficit))})`).join('<br>')
+        ? swaps.map(s=>`\u21c4 swap ~<b>${fmt(Math.round(s.mv))}</b> toward <b class="canlink" data-can="${s.to.x.code}">${s.to.x.code}</b> ${s.to.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'').slice(0,26)} (short ${fmt(Math.round(s.to.deficit))})`).join('<br>')
         : '';
       const residual=Math.round(over);
       return `<div class="ovrow">
-        <div class="ov1"><span class="ovcan"><span class="mono">${don.x.code}</span>${don.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</span>
+        <div class="ov1"><span class="ovcan"><span class="mono canlink" data-can="${don.x.code}">${don.x.code}</span>${don.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</span>
           <span class="ovamt">over 60-day max by ${fmt(Math.round(don.overCans))} cans (~${don.overDays.toFixed(0)}d)</span></div>
         <div class="ovpos">Open orders: ${posTxt}</div>
         ${swapTxt?`<div class="ovswap">${swapTxt}${residual>500?` &nbsp;·&nbsp; remaining <b>${fmt(residual)}</b> not needed by any short can — cancel / reduce next DSC order`:''}</div>`
@@ -2203,9 +2205,9 @@ function render(){
   const overBody=`<div class="secnote">These cans already have open POs that carry them <b>past your ${state.gMaxDOS}-day MAX policy</b> — the excess isn't needed. Remove those PO lines, or swap the DSC capacity toward a can that's projected short. Recommendations use only your <b>current open POs</b>.</div>
     ${overPlanArr.length?overPlanArr.map(({o,swaps,residual})=>{
       const posTxt=(o.x.pos||[]).length?o.x.pos.slice(0,3).map(p=>`PO ${p.po} ${fmt(p.qty)}${p.date?' due '+dstr(p.date):''}`).join(' · '):'no open PO lines on file';
-      const swapTxt=swaps.length?swaps.map(s=>`\u21c4 swap ~<b>${fmt(Math.round(s.mv))}</b> toward <b>${s.to.code}</b> ${s.to.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'').slice(0,28)} (short ${fmt(Math.round(s.def))})`).join('<br>'):'';
+      const swapTxt=swaps.length?swaps.map(s=>`\u21c4 swap ~<b>${fmt(Math.round(s.mv))}</b> toward <b class="canlink" data-can="${s.to.code}">${s.to.code}</b> ${s.to.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'').slice(0,28)} (short ${fmt(Math.round(s.def))})`).join('<br>'):'';
       return `<div class="ovrow">
-        <div class="ov1"><span class="ovcan"><span class="mono">${o.x.code}</span>${o.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</span>
+        <div class="ov1"><span class="ovcan"><span class="mono canlink" data-can="${o.x.code}">${o.x.code}</span>${o.x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</span>
           <span class="ovamt">over ${state.gMaxDOS}-day max by ${fmt(Math.round(o.over))} cans (~${o.overDays.toFixed(0)}d)</span></div>
         <div class="ovpos">Open orders: ${posTxt}</div>
         ${swapTxt?`<div class="ovswap">${swapTxt}${residual>500?` &nbsp;·&nbsp; remaining <b>${fmt(residual)}</b> not needed by any short can — cancel / reduce next DSC order`:''}</div>`
@@ -2247,10 +2249,10 @@ function render(){
     ${transList.length?transList.map(tr=>{
       const active=tr.ready;
       return `<div class="ovrow">
-        <div class="ov1"><span class="ovcan"><span class="mono">${tr.oldCan}</span> <span style="color:var(--faint)">→</span> <span class="mono" style="color:#177245">${tr.newCan}</span></span>
+        <div class="ov1"><span class="ovcan"><span class="mono canlink" data-can="${tr.oldCan}">${tr.oldCan}</span> <span style="color:var(--faint)">→</span> <span class="mono canlink" data-can="${tr.newCan}" style="color:#177245">${tr.newCan}</span></span>
           <span class="ovamt">${tr.fg?tr.fg+' · ':''}${tr.type||'transition'} · ${active?'<b style="color:#177245">ready — demand moved</b>':'<b style="color:#b06d00">not ready — demand stays on old can</b>'}${tr.ordered?' · <b>order placed</b>':''}</span></div>
         <div class="ovpos">${tr.desc||tr.newDesc||''}</div>
-        ${active&&tr.newDaily>0?`<div class="ovswap">New can <b>${tr.newCan}</b> now carries ~<b>${fmt(Math.round(tr.newDaily))}</b> cans/day of demand · on hand ${fmt(Math.round(tr.newOnHand))}</div>`:''}
+        ${active&&tr.newDaily>0?`<div class="ovswap">New can <b class="canlink" data-can="${tr.newCan}">${tr.newCan}</b> now carries ~<b>${fmt(Math.round(tr.newDaily))}</b> cans/day of demand · on hand ${fmt(Math.round(tr.newOnHand))}</div>`:''}
       </div>`;
     }).join(''):'<div class="emptyrow">No item transitions loaded — drop a transitions file (old→new can) to redirect demand automatically.</div>'}`;
   // ---- daily tracker (capture / recall) ----
@@ -2282,6 +2284,7 @@ function render(){
 
   // wiring
   document.querySelectorAll('.sechead').forEach(el=>el.onclick=()=>{state.sec[el.dataset.sec]=!state.sec[el.dataset.sec];render();});
+  document.querySelectorAll('.canlink[data-can]').forEach(el=>el.onclick=e=>{e.stopPropagation();if(state.rows.some(r=>r.code===el.dataset.can))openModal(el.dataset.can);else toast('No details for '+el.dataset.can+' yet (no stock or demand on file)');});
   document.querySelectorAll('.stitem').forEach(el=>el.onclick=()=>{state.sec[el.dataset.goto]=true;render();setTimeout(()=>{const t=document.querySelector(`[data-sec="${el.dataset.goto}"]`);if(t)t.scrollIntoView({behavior:'smooth',block:'start'});},50);});
   document.querySelectorAll('[data-tog]').forEach(el=>el.onclick=()=>{state.expanded[el.dataset.tog]=!state.expanded[el.dataset.tog];render();});
   document.querySelectorAll('.prow,.qrow,.scl[data-c]').forEach(el=>el.onclick=e=>{e.stopPropagation();if(el.dataset.c)openModal(el.dataset.c);});
