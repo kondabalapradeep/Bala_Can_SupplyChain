@@ -566,6 +566,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
       <button class="szbtn" data-sz="big" title="~13oz / 13.5oz cans · pallet 1,900">🥫 13oz big</button>
       <button class="szbtn" data-sz="sm" title="~6oz / 6.5oz cans · pallet 2,280">🥤 6oz small</button>
     </div>
+    <div class="sizefilt"><button class="szbtn" id="showAllBtn" title="Include every can from the Stock file — even those at 0 on hand with no current demand">📋 All cans</button></div>
     <div class="custwrap"><button class="btn ghost" id="custBtn">👥 Customers: <b>All</b> ▾</button>
       <div class="custpanel" id="custPanel"></div></div>
     <div class="set">Lead <input id="setLT" type="number" value="28">d</div>
@@ -734,7 +735,7 @@ const state={
   stock:null,pa:null,po:null,count:null,
   forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,
   files:{stock:null,pa:null,po:null,count:EMB.count?'built-in':null,dsc:null,swapdec:null,expdec:null,trans:null,forecast:'built-in',bom:'built-in'},count:EMB.count||null,
-  rows:[],q:'',sizeFilter:'all',expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},transitions:[],swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
+  rows:[],q:'',sizeFilter:'all',showAll:false,expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},transitions:[],swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
 };
 
@@ -1001,6 +1002,44 @@ function pCountDate(v){
   if(s.length===8)return new Date(+s.slice(4),+s.slice(0,2)-1,+s.slice(2,4));
   return xDate(v);
 }
+function parseCountPull(wb){
+  // Warehouse "Cans Count / Pulling Report": one row per item PER WAREHOUSE-LOT.
+  // Cols: Item Code, On Hand (system), Physical Count, Date Counted, Adjusted(Y/N).
+  // Aggregate per item (sum across lots). Rule: if Adjusted=Y -> item is reconciled, USE the NetStock stock-file on-hand.
+  // If counted but NOT adjusted -> the system is stale, USE the physical count from this file.
+  for(const sn of wb.SheetNames){
+    const r=rws(wb.Sheets[sn]);
+    let hr=-1,h=null;
+    for(let k=0;k<Math.min(r.length,6);k++){const row=(r[k]||[]).map(x=>String(x||'').trim().toLowerCase());
+      if(row.some(x=>x.includes('item code'))&&row.some(x=>x.includes('physical count'))&&row.some(x=>x.includes('adjust'))){hr=k;h=row;break;}}
+    if(hr<0)continue;
+    const iCode=h.findIndex(x=>x.includes('item code'));
+    const iOH=h.findIndex(x=>x==='on hand'||x.includes('on hand'));
+    const iPhys=h.findIndex(x=>x.includes('physical count'));
+    const iDate=h.findIndex(x=>x.includes('date counted')||x.includes('counted date'));
+    const iAdj=h.findIndex(x=>x.includes('adjust'));
+    const num=v=>{const n=+v;return isNaN(n)?0:n;};
+    const agg={};
+    for(let i=hr+1;i<r.length;i++){
+      let code=String(r[i][iCode]==null?'':r[i][iCode]).trim();if(/^\d{5}\.0$/.test(code))code=code.slice(0,5);
+      if(!/^12\d{3}$/.test(code))continue;
+      const a=agg[code]=agg[code]||{sysAtCount:0,phys:0,counted:false,adjusted:false,date:null};
+      a.sysAtCount+=iOH>=0?num(r[i][iOH]):0;
+      const hv=iPhys>=0?r[i][iPhys]:null;
+      if(hv!=null&&hv!==''){a.counted=true;a.phys+=num(hv);}
+      if(iAdj>=0){const av=String(r[i][iAdj]||'').trim().toUpperCase();if(av.startsWith('Y'))a.adjusted=true;}
+      if(iDate>=0&&a.date==null){const dv=xDate(r[i][iDate]);if(dv&&!isNaN(dv))a.date=dv;}
+    }
+    const out={};
+    for(const code in agg){const a=agg[code];
+      if(!a.counted&&!a.adjusted)continue; // only keep items that were counted or adjusted
+      out[code]={phys:Math.round(a.phys),sysAtCount:Math.round(a.sysAtCount),diff:Math.round(a.phys-a.sysAtCount),
+        counted:a.counted,adjusted:a.adjusted,date:a.date||today(),status:a.adjusted?'Adjusted (MAS)':'Counted'};
+    }
+    return Object.keys(out).length?out:null;
+  }
+  return null;
+}
 function parseCount(wb){
   // Physical-count file: Item Code | Description | Inactive | MAS(system) | Physical count DC7 | Physical count DC6 | Total | Variance | SHIFT
   // Two tabs (e.g. "Sheet1" + "8.4.26 (PENDING CANS)"). Combine both: for each item, sum its physical-count TOTAL across the tabs —
@@ -1201,8 +1240,10 @@ function compute(){
     const st=state.stock[code]||{code,desc:state.canDesc[code]||('Can '+code),onHand:0,lt:null,supplier:'DS CONTAINERS',ns:'',ss:0,rc:0,onOrderSys:0};
     const sz=sizeOf(st.desc);
     const cnt=state.count?state.count[code]:null;
-    const counted=!!cnt;
-    const onHand=counted?cnt.phys:st.onHand;
+    const adjusted=cnt?!!cnt.adjusted:false;
+    const usePhys=!!cnt&&!!cnt.counted&&!adjusted;   // physical count wins ONLY when counted and not yet adjusted in MAS
+    const counted=usePhys;
+    const onHand=usePhys?cnt.phys:st.onHand;         // adjusted or uncounted -> use the reconciled NetStock on-hand
     const floor=state.floor.has(code);
     const ltBase=st.lt||LTdef;
     const dscOH=state.dsc?state.dsc[code]:null;
@@ -1263,7 +1304,8 @@ function compute(){
     const quickPull=!floor&&dscAvail!=null&&rawNeed>0&&dscAvail>=rawNeed;
     const lt=(floor||quickPull)?FLT:ltBase;
     const totDem=d.reduce((a,b)=>a+b,0);
-    const active=totDem>1||onHand>0||incoming>0;
+    const inStock=!!state.stock[code];
+    const active=totDem>1||onHand>0||incoming>0||(state.showAll&&inStock);
     const dos=daily>0?onHand/daily:(totDem>1?0:Infinity);
     const needByOH=needDay!=null?Math.max(0,needDay-BUF):null;   // run dry from ON-HAND minus buffer (in-house-by target)
     const needBy=runout!=null?Math.max(0,runout-BUF):null;        // run dry INCLUDING open POs — the real order-timing date
@@ -1301,6 +1343,7 @@ function compute(){
     if(daily>0){bandMinCans=bMin*daily;bandMaxCans=bMax*daily;bandStatus=onHand<bandMinCans?'below':(onHand>bandMaxCans?'over':'in');}
     out.push({code,desc:st.desc,supplier:st.supplier,ns:st.ns,ss:st.ss,onHand,counted,cnt,sysOnHand:st.onHand,
       oz:sz.oz,size:sz.size,pallet:sz.pallet,
+      adjusted:!!(cnt&&cnt.adjusted&&cnt.counted),cntEntry:cnt,
       transTo:transByOld[code]?transByOld[code].newCan:null,transToReady:transByOld[code]?!!transByOld[code].ready:false,
       transFrom:transByNew[code]?transByNew[code].oldCan:null,
       transType:(transByOld[code]||transByNew[code])?(transByOld[code]||transByNew[code]).type:null,
@@ -1433,7 +1476,8 @@ function actionOf(x){
 }
 function whyOf(x){
   const T=today();const li=[];const BUF=+$('#setBuf').value||7;
-  if(x.counted)li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from the <b>physical count on ${dstr(x.cnt.date)}</b> (system showed ${fmt(x.cnt.sysAtCount)} at count — variance ${x.cnt.diff<0?'−':'+'}${fmt(Math.abs(x.cnt.diff))}${x.varFlag?', <b>large variance flagged</b>':''}).`);
+  if(x.counted)li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from the <b>physical count on ${dstr(x.cnt.date)}</b> (system showed ${fmt(x.cnt.sysAtCount)} at count — variance ${x.cnt.diff<0?'−':'+'}${fmt(Math.abs(x.cnt.diff))}${x.varFlag?', <b>large variance flagged</b>':''}) — not yet adjusted in MAS, so the physical count is used.`);
+  else if(x.adjusted)li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from the <b>NetStock system</b>. Physically counted ${x.cntEntry&&x.cntEntry.date?dstr(x.cntEntry.date):'recently'} (count ${x.cntEntry?fmt(x.cntEntry.phys):'—'}) and <b>already adjusted in MAS</b>, so the reconciled system figure is used.`);
   else li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from NetStock (system figure — not in the latest physical count).`);
   if(x.daily>0){
     const top=x.drivers.slice(0,3).map(d=>`<b>${d.fg}</b> ${(state.fgDesc[d.fg]||'').split(' ').slice(0,4).join(' ')} (${fmt(d.rate)}/day)`).join(', ');
@@ -2299,7 +2343,8 @@ function render(){
     else if(k==='trackcap')captureSnapshot();else if(k==='trackexp')exportTracker();else if(k==='trackclear')clearTracker();
     else if(k==='exped')exportRows(expedites,'Cans_Expedite');});
   const act=state.rows.filter(x=>x.active&&['out','exp','now'].includes(x.cls)).length;
-  $('#hdMeta').textContent=`${state.rows.filter(x=>x.active).length} active cans · ${allPOs.length} POs to place · ${swapActions.length} swaps · ${act} urgent`;
+  const totalInFile=Object.keys(state.stock||{}).length;
+  $('#hdMeta').textContent=`${state.rows.filter(x=>x.active).length} cans shown${totalInFile?(state.showAll?' · all in file':' of '+totalInFile+' in file'):''} · ${allPOs.length} POs to place · ${swapActions.length} swaps · ${act} urgent`;
 }
 /* ---------- upload tiles + drop-all + processing ---------- */
 const SLOTS=[
@@ -2572,7 +2617,7 @@ async function handleFiles(list){
       if(t==='stock'){state.stock=parseStock(wb);state.files.stock=f.name;names.push('Stock on Hand');}
       else if(t==='pa'){state.pa=parsePA(wb);state.files.pa=f.name;names.push('Live PA');}
       else if(t==='po'){state.po=parsePO(wb);state.files.po=f.name;names.push('Purchase Orders');}
-      else if(t==='count'){state.count=parseCount(wb);state.files.count=f.name;names.push('Can Inv Count');}
+      else if(t==='count'){const cp=parseCountPull(wb);state.count=cp||parseCount(wb);state.files.count=f.name;names.push('Can Inv Count');}
       else if(t==='forecast'){const p=parseForecast(wb);state.forecast=p.fc;Object.assign(state.fgDesc,p.fd);state.files.forecast=f.name;names.push('Forecast');}
       else if(t==='bom'){const p=parseBOM(wb);state.billMap=p.map;Object.assign(state.canDesc,p.canDesc);state.files.bom=f.name;names.push('BOM');}
       else if(t==='swapdec'){
@@ -3141,6 +3186,7 @@ document.querySelectorAll('#sizeFilt .szbtn').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#sizeFilt .szbtn').forEach(x=>x.classList.toggle('on',x.dataset.sz===state.sizeFilter));
   render();
 });
+$('#showAllBtn').onclick=()=>{state.showAll=!state.showAll;$('#showAllBtn').classList.toggle('on',state.showAll);compute();};
 ['setLT','setBuf','setTruck','setCov','setFLT','setMOQ','setMinSwap','setStale','setRemnant'].forEach(id=>$('#'+id).oninput=()=>compute());
 $('#setDscLock').onchange=()=>compute();
 $('#setComanMin').oninput=()=>{state.comanMin=Math.max(0,+$('#setComanMin').value||0);compute();};
