@@ -1173,34 +1173,35 @@ function compute(){
     const CF=state.cust;
     const lines=pa?(CF.size?pa.lines.filter(l=>CF.has((l.cust||'').trim())):pa.lines):[];
     const linesQty=lines.reduce((a,l)=>a+l.qty,0);
-    // ---- per-DAY demand rate, distributed by fiscal PERIOD (varies month to month), with firm PA netted INTO the forecast ----
-    // For each fiscal period: demand = max(period forecast, firm PA in that period) — the forecast is the ceiling and the
-    // already-placed sales orders (PA) consume part of it; the remainder is unfirmed forecast. That period total is then
-    // spread evenly across the period's days (so a 5-week period spreads over 5 weeks, a 4-week over 4, a zero-forecast period = 0).
-    const rate=new Float64Array(H);let hasDemand=false,lastEo=-1,lastR=0;
+    // ---- per-DAY demand: forecast REMAINDER spread by fiscal period + firm PA as SPIKES on ship dates + FG on-hand netted ----
+    const rate=new Float64Array(H);let hasFc=false,hasPA=false,lastEo=-1,lastR=0;
+    // 1) unfirmed forecast per period = period forecast MINUS firm PA already placed that period, spread across the period's days
     for(let pi=0;pi<FISCAL26.length;pi++){
       const P=FISCAL26[pi];if(P.ed<T)continue;
       const so=Math.round((P.sd-T)/DAY),eo=Math.round((P.ed-T)/DAY);if(so>=H)break;
       const fullDays=Math.round((P.ed-P.sd)/DAY)+1;
-      const periodFc=f?(+f[P.p-1]||0):0;                                   // this fiscal period's forecast
+      const periodFc=f?(+f[P.p-1]||0):0;
       let periodPA=0;for(const l of lines){if(l.date&&l.date>=P.sd&&l.date<=P.ed)periodPA+=l.qty;}
-      const periodDemand=Math.max(periodFc,periodPA);                      // forecast is the ceiling; firm PA nets into it
-      const r=fullDays>0?periodDemand/fullDays:0;if(r>0)hasDemand=true;
-      for(let dd=Math.max(0,so);dd<=Math.min(H-1,eo);dd++)rate[dd]=r;
+      if(periodFc>0)hasFc=true;
+      const remFc=Math.max(0,periodFc-periodPA);                              // firm PA nets into forecast; only the remainder is unfirmed
+      const r=fullDays>0?remFc/fullDays:0;
+      for(let dd=Math.max(0,so);dd<=Math.min(H-1,eo);dd++)rate[dd]+=r;
       lastEo=Math.min(H-1,eo);lastR=r;
     }
-    if(lastEo>=0&&lastEo<H-1)for(let dd=lastEo+1;dd<H;dd++)rate[dd]=lastR;  // extend last known period's rate beyond the loaded calendar
-    if(!hasDemand&&pa&&(CF.size?linesQty:pa.orders)>0){const r=(CF.size?linesQty:pa.orders)/28;for(let dd=0;dd<28;dd++)rate[dd]=r;hasDemand=true;}
-    if(!hasDemand)continue;
-    let daily=0;for(let dd=0;dd<60;dd++)daily+=rate[dd];daily/=60;          // near-term (60-day) average rate for DOS / band
+    if(hasFc&&lastEo>=0&&lastEo<H-1)for(let dd=lastEo+1;dd<H;dd++)rate[dd]+=lastR; // extend the forecast tail ONLY when a forecast exists
+    // 2) firm PA on the actual ship dates (spikes) — with no forecast, demand ends after the sales orders (no lingering rate)
+    for(const l of lines){if(l.qty>0){hasPA=true;const dd=l.date?Math.round((l.date-T)/DAY):0;const at=dd<0?0:(dd<H?dd:null);if(at!=null)rate[at]+=l.qty;}}
+    const noForecast=!hasFc&&hasPA;                                            // firm sales orders but NO forecast at all
+    if(!hasFc&&!hasPA)continue;
+    // 3) net FG on-hand against the EARLIEST demand — FG stock satisfies the first orders/forecast, only the shortfall needs cans
+    const qoh=pa?pa.qoh:0;let coh=qoh;
+    for(let dd=0;dd<H&&coh>0;dd++){const cov=Math.min(coh,rate[dd]);rate[dd]-=cov;coh-=cov;}
+    let daily=0;for(let dd=0;dd<60;dd++)daily+=rate[dd];daily/=60;             // near-term (60-day) average rate for DOS / band
     if(daily<=0)daily=rate.reduce((a,b)=>a+b,0)/H;
-    const qoh=pa?pa.qoh:0;
-    let sr=H,cum=0;for(let dd=0;dd<H;dd++){cum+=rate[dd];if(cum>=qoh){sr=dd;break;}}  // FG on-hand runway (days until FG stock is drawn down)
     let paDay=null,paCust=null,paDate=null;
     if(lines.length){const ls=[...lines].filter(l=>l.date).sort((a,b)=>a.date-b.date);let c=0;for(const l of ls){c+=l.qty;if(c>qoh){paDay=Math.max(0,Math.round((l.date-T)/DAY));paCust=l.cust;paDate=l.date;break;}}}
     const coverF=Math.min(90,daily>0?qoh/daily:0);
-    const start=paDay!=null?Math.min(sr,paDay):sr;
-    fgUse[fg]={rate,daily,start,coverF,paDay,paCust,paDate,qoh,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
+    fgUse[fg]={rate,daily,start:0,coverF,paDay,paCust,paDate,qoh,noForecast,hasPA,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
   }
   // ---- item transitions: redirect demand from an OLD can to its NEW can (when ready for order) ----
   const transByOld={},transByNew={};
@@ -1218,7 +1219,7 @@ function compute(){
       const arr=dem[targetCan]=dem[targetCan]||new Float64Array(H);
       const s=Math.max(0,Math.floor(u.start)||0);
       for(let d=s;d<H;d++)arr[d]+=u.rate[d]*comp.qty;   // per-day rate (varies by period) × cans-per-case
-      (drivers[targetCan]=drivers[targetCan]||[]).push({fg,rate:u.daily*comp.qty,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch,transFrom:movedFrom});
+      (drivers[targetCan]=drivers[targetCan]||[]).push({fg,rate:u.daily*comp.qty,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch,transFrom:movedFrom,noForecast:u.noForecast,hasPA:u.hasPA});
     }
   }
   // ---- co-manufacturing customers: map cans -> customers, flag co-man cans ----
@@ -1337,6 +1338,7 @@ function compute(){
     const fgFull=fgAll.map(d=>d.fg+' '+((state.fgDesc[d.fg]||'').split(' ').slice(0,4).join(' '))).join(' | ');
     let paFirst=null;
     for(const dd of fgAll){if(dd.paDay!=null&&(paFirst==null||dd.paDay<paFirst.day))paFirst={day:dd.paDay,date:dd.paDate,cust:dd.paCust,fg:dd.fg};}
+    const paOnly=fgAll.length>0&&fgAll.every(dd=>dd.noForecast)&&fgAll.some(dd=>dd.hasPA); // firm sales orders only — no forecast at all
     const custMatch=state.cust.size?fgAll.some(dd=>dd.custMatch):true;
     // inventory-band status for every can with demand
     let bandMinCans=null,bandMaxCans=null,bandStatus=null;
@@ -1349,7 +1351,7 @@ function compute(){
       transType:(transByOld[code]||transByNew[code])?(transByOld[code]||transByNew[code]).type:null,
       transFg:(transByOld[code]||transByNew[code])?(transByOld[code]||transByNew[code]).fg:null,
       daily,dos,needDay,needBy,orderBy,runout,firstArr,incoming,overduePO,pos,suggest,trucks,lt,cls,pr,varFlag,
-      expedite,active,totDem,fgTop,fgFull,paFirst,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll,
+      expedite,active,totDem,fgTop,fgFull,paFirst,paOnly,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll,
       demArr:d,arrArr:arrivals,
       coman,comanCusts:canComanCusts[code]||[],allCusts:canCusts[code]||[],cMin:bMin,cMax:bMax,bMin,bMax,bIdeal,bandSrc,bandMinCans,bandMaxCans,bandStatus,covWin});
   }
@@ -1465,9 +1467,10 @@ function compute(){
 /* ---------- action + why ---------- */
 function actionOf(x){
   const T=today();
+  const noFc=x.paOnly?' · ⚠️ no forecast — sales-order-only, confirm':'';
   if(x.cls==='out')return{t:`OUT OF STOCK — ${x.pos.length?`expedite PO ${x.pos[0].po} immediately`:`place ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trucks) today & request expedite`}`,c:'a-red'};
   if(x.cls==='exp')return{t:`EXPEDITE PO ${x.expedite.po.po} → arrive by ${dstr(addD(T,x.expedite.by))} (due ${dstr(x.expedite.po.date)}, ${x.expedite.late}d late)`,c:'a-org'};
-  if(x.cls==='now')return{t:`PLACE ORDER TODAY — ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trk), in-house by ${dstr(addD(T,x.needBy))}${x.orderBy<0?` · ${-x.orderBy}d behind lead time — request expedite`:''}`,c:'a-red'};
+  if(x.cls==='now')return{t:`PLACE ORDER TODAY — ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trk), in-house by ${dstr(addD(T,x.needBy))}${x.orderBy<0?` · ${-x.orderBy}d behind lead time — request expedite`:''}${noFc}`,c:'a-red'};
   if(x.cls==='wk')return{t:`ORDER BY ${dlong(addD(T,x.orderBy))} — ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trk)`,c:'a-amb'};
   if(x.cls==='nx')return{t:`ORDER NEXT WEEK (by ${dstr(addD(T,x.orderBy))}) — ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trk)`,c:'a-blu'};
   if(x.cls==='up')return{t:x.orderBy!=null?`PLAN ORDER by ${dstr(addD(T,x.orderBy))}${x.suggest?` — ${fmt(x.suggest)}`:''}`:`WATCH — NetStock flags "${x.ns}"`,c:'a-blu'};
@@ -1476,12 +1479,17 @@ function actionOf(x){
 }
 function whyOf(x){
   const T=today();const li=[];const BUF=+$('#setBuf').value||7;
+  if(x.paOnly){
+    const moq=+$('#setMOQ').value||15200;
+    const dosAfter=x.daily>0&&x.suggest>0?(x.suggest/x.daily):null;
+    li.push(`⚠️ <b>No forecast for this can — demand is firm sales orders only.</b> Once the open PA orders are produced there is <b>no ongoing demand</b>, so it should not be reordered on a rolling 45-day cover. ${x.suggest>0?`It covers the sales-order shortfall, but the MOQ (${fmt(moq)}) would leave you at about <b>${dosAfter?dosAfter.toFixed(0):'—'} days</b> with nothing after to consume it — <b>confirm before ordering</b>.`:`The sales orders are already covered by on-hand / open POs — <b>no order needed</b>.`}`);
+  }
   if(x.counted)li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from the <b>physical count on ${dstr(x.cnt.date)}</b> (system showed ${fmt(x.cnt.sysAtCount)} at count — variance ${x.cnt.diff<0?'−':'+'}${fmt(Math.abs(x.cnt.diff))}${x.varFlag?', <b>large variance flagged</b>':''}) — not yet adjusted in MAS, so the physical count is used.`);
   else if(x.adjusted)li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from the <b>NetStock system</b>. Physically counted ${x.cntEntry&&x.cntEntry.date?dstr(x.cntEntry.date):'recently'} (count ${x.cntEntry?fmt(x.cntEntry.phys):'—'}) and <b>already adjusted in MAS</b>, so the reconciled system figure is used.`);
   else li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from NetStock (system figure — not in the latest physical count).`);
   if(x.daily>0){
     const top=x.drivers.slice(0,3).map(d=>`<b>${d.fg}</b> ${(state.fgDesc[d.fg]||'').split(' ').slice(0,4).join(' ')} (${fmt(d.rate)}/day)`).join(', ');
-    li.push(`Burn rate ≈ <b>${fmt(x.daily)} cans/day</b> from the P${T.getMonth()+1}–P${((T.getMonth()+1)%12)+1} forecast exploded through the BOM. Main drivers: ${top}.`);
+    li.push(`Burn rate ≈ <b>${fmt(x.daily)} cans/day</b> ${x.paOnly?'from <b>firm sales orders</b> (no forecast)':`from the P${T.getMonth()+1}–P${((T.getMonth()+1)%12)+1} forecast`} exploded through the BOM. Main drivers: ${top}.`);
     const pd=x.drivers.find(d=>d.paDay!=null&&d.paDay<=21);
     if(pd)li.push(`Live PA shows a firm sales order on <b>${pd.fg}</b> (${(pd.paCust||'').trim()}) shipping <b>${dstr(pd.paDate)}</b> that finished-goods stock cannot cover — production must run before then.`);
     else if(x.drivers.length&&x.drivers[0].start>0)li.push(`Finished-goods stock covers sales until about <b>${dstr(addD(T,x.drivers[0].start))}</b> (Live PA) — can consumption starts around then.`);
@@ -2672,7 +2680,8 @@ function openModal(code){
       let bal=(pa.qoh!=null?pa.qoh:(d.qoh!=null?d.qoh:0)); // FG on hand
       for(const L of lines){
         const before=bal,after=bal-L.qty;
-        all.push({fg:d.fg,cust:(L.cust||'').trim(),date:L.date,fgQty:L.qty,fgBefore:before,fgAfter:after,canQty:Math.round(L.qty*per)});
+        const shortfall=Math.max(0,L.qty-Math.max(0,before)); // only the FG qty that on-hand FG stock can't cover
+        all.push({fg:d.fg,cust:(L.cust||'').trim(),date:L.date,fgQty:L.qty,fgBefore:before,fgAfter:after,shortfall,canQty:Math.round(shortfall*per)});
         bal=after;
       }
     }
