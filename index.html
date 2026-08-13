@@ -2677,7 +2677,13 @@ function openModal(code){
   const pos=x.pos.slice(0,8).map(p=>{const od=p.date&&p.date<T;return `<tr><td>PO ${p.po}</td><td class="${od?'neg':''}">${dstr(p.date)}${od?' overdue':''}</td><td>${fmt(p.qty)}</td></tr>`;}).join('')||'<tr><td colspan="3">No open purchase orders.</td></tr>';
   // firm PA sales orders behind this can: for each FG that uses it, list its PA lines × cans-per-case
   const soRows=(()=>{
-    const canPer=fg=>{const b=(state.billMap[fg]||[]).find(c=>String(c.can)===String(x.code));return b?b.qty:0;};
+    const canPer=fg=>{
+      const bill=state.billMap[fg]||[];
+      let b=bill.find(c=>String(c.can)===String(x.code));
+      // NEW transition can: the BOM still lists the OLD can code, so use the can it replaces
+      if(!b&&x.transFrom)b=bill.find(c=>String(c.can)===String(x.transFrom));
+      return b?b.qty:0;
+    };
     const all=[];
     for(const d of (x.drivers||[])){
       const pa=state.pa&&state.pa[d.fg];if(!pa||!pa.lines)continue;
