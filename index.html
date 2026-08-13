@@ -586,6 +586,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
   <div class="bar floorbar">
     <div class="set" style="font-weight:800;color:var(--ink)">🏭 Floor stock @ DSC</div>
     <div class="set">quick-turn lead <input id="setFLT" type="number" value="7">d</div>
+    <div class="set" title="Floor-stock cans are held to this tight days-of-supply band so you don't over-order what DSC keeps on quick-turn">hold <input id="setFloorMin" type="number" value="7" style="width:44px">–<input id="setFloorMax" type="number" value="14" style="width:44px">d</div>
     <input id="floorList" class="floorinput" title="Comma-separated can codes DSC keeps as floor stock" value="12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020">
     <button class="btn ghost" id="btnFloorApply" style="padding:7px 13px">Apply</button>
     <div class="set" id="floorCount"></div>
@@ -735,7 +736,7 @@ const state={
   stock:null,pa:null,po:null,count:null,
   forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,
   files:{stock:null,pa:null,po:null,count:EMB.count?'built-in':null,dsc:null,swapdec:null,expdec:null,trans:null,forecast:'built-in',bom:'built-in'},count:EMB.count||null,
-  rows:[],q:'',sizeFilter:'all',showAll:false,expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},transitions:[],swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
+  rows:[],q:'',sizeFilter:'all',showAll:false,expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,floorMin:7,floorMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},transitions:[],swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
 };
 
@@ -1278,12 +1279,12 @@ function compute(){
     // per-customer imported band (tightest wins across this can's customers)
     let custMin=null,custMax=null,custIdeal=null;
     for(const c of (canCusts[code]||[])){const cb=state.custBand[c];if(cb){if(cb.min!=null)custMin=custMin==null?cb.min:Math.max(custMin,cb.min);if(cb.max!=null)custMax=custMax==null?cb.max:Math.min(custMax,cb.max);if(cb.ideal!=null)custIdeal=custIdeal==null?cb.ideal:Math.min(custIdeal,cb.ideal);}}
-    const defMin=coman?state.comanMin:state.gMinDOS,defMax=coman?state.comanMax:state.gMaxDOS,defIdeal=coman?state.comanMax:state.gIdealDOS;
+    const defMin=floor?state.floorMin:(coman?state.comanMin:state.gMinDOS),defMax=floor?state.floorMax:(coman?state.comanMax:state.gMaxDOS),defIdeal=floor?state.floorMax:(coman?state.comanMax:state.gIdealDOS);
     const bMin=ov.min!=null?ov.min:(custMin!=null?custMin:defMin);
     const bMax=ov.max!=null?ov.max:(custMax!=null?custMax:defMax);
     let bIdeal=ov.ideal!=null?ov.ideal:(custIdeal!=null?custIdeal:defIdeal);
     bIdeal=Math.min(Math.max(bIdeal,bMin),bMax); // keep ideal inside [min,max]
-    const bandSrc=(ov.min!=null||ov.max!=null||ov.ideal!=null)?'can override':((custMin!=null||custMax!=null||custIdeal!=null)?'customer':(coman?'co-man default':'global default'));
+    const bandSrc=(ov.min!=null||ov.max!=null||ov.ideal!=null)?'can override':((custMin!=null||custMax!=null||custIdeal!=null)?'customer':(floor?'floor-stock band':(coman?'co-man default':'global default')));
     // SAFETY FLOOR = Min days of supply (bMin × daily). Run-out = the day on-hand would fall to this floor — NOT zero —
     // so a PO timed to it lands while you still hold the Min days on hand. You never dip below the Min-days band.
     const safetyCans=daily>0?bMin*daily:0;
@@ -2666,6 +2667,11 @@ async function handleFiles(list){
 function openModal(code){
   const x=state.rows.find(r=>r.code===code);if(!x)return;
   const T=today();const a=actionOf(x);const why=whyOf(x);
+  const leadTxt=x.lt!=null?`lead <b>${x.lt}d</b>${(x.floor||x.quickPull)?' <span style="color:var(--green)">(quick-turn)</span>':''}`:'';
+  const perOf=fg=>{const b=(state.billMap[fg]||[]).find(c=>String(c.can)===String(x.code));return b?b.qty:null;};
+  const goesInto=(x.drivers&&x.drivers.length)
+    ? x.drivers.slice(0,6).map(dd=>{const p=perOf(dd.fg);return `<b>${dd.fg}</b>${p!=null?` <span style="color:var(--dim);font-weight:600">(${fmt(p)} can${p===1?'':'s'}/case)</span>`:''}`;}).join(', ')+(x.drivers.length>6?` +${x.drivers.length-6} more`:'')
+    : (x.fgTop||'');
   const tone=['out','now'].includes(x.cls)?'alarm':(x.cls==='exp'?'warn':'');
   const dr=x.drivers.slice(0,8).map(d=>`<tr><td><b>${d.fg}</b> ${(state.fgDesc[d.fg]||'').slice(0,30)}</td><td>${fmt(d.rate)}/day</td></tr>`).join('')||'<tr><td colspan="2">No mapped demand.</td></tr>';
   const pos=x.pos.slice(0,8).map(p=>{const od=p.date&&p.date<T;return `<tr><td>PO ${p.po}</td><td class="${od?'neg':''}">${dstr(p.date)}${od?' overdue':''}</td><td>${fmt(p.qty)}</td></tr>`;}).join('')||'<tr><td colspan="3">No open purchase orders.</td></tr>';
@@ -2740,7 +2746,7 @@ function openModal(code){
     <tr><td>Suggested buy</td><td>${x.suggest?fmt(x.suggest)+' (≈'+x.trucks.toFixed(1)+' trk)':'—'}</td></tr>
     ${x.bandStatus?`<tr><td>On-hand band</td><td class="${x.bandStatus==='below'?'neg':(x.bandStatus==='over'?'':'pos')}">${x.coman?`<b style="color:#2f5da8">🤝 ${x.comanCusts.join(', ')}</b> — `:''}hold ${x.bMin}–${x.bMax}d (${fmt(x.bandMinCans)}–${fmt(x.bandMaxCans)} cans)${x.bandStatus==='below'?' · BELOW MIN':(x.bandStatus==='over'?' · OVER MAX':' · in band')} · <span style="color:var(--faint)">${x.bandSrc}</span></td></tr>`:''}`;
   $('#modal').innerHTML=`
-    <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${x.size?` · <b style="color:${x.size==='big'?'#2f5da8':'#0d8f6f'}">${x.size==='big'?'13oz BIG':'6oz SMALL'} · pallet ${fmt(x.pallet)}</b>`:''}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.transFrom?` · <b style="color:#2f5da8">🔄 NEW transition can (replaces ${x.transFrom})</b>`:''}${x.transTo?` · <b style="color:#b06d00">🔄 OLD transition can${x.transToReady?' — demand moved to '+x.transTo:' → '+x.transTo+' (not yet ready)'}</b>`:''}${x.fgTop?`<br>→ goes into: <b style="color:var(--ink)">${x.fgTop}</b>`:''}</div></div><button class="x" id="mx">✕</button></div>
+    <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${leadTxt?` · ${leadTxt}`:''}${x.size?` · <b style="color:${x.size==='big'?'#2f5da8':'#0d8f6f'}">${x.size==='big'?'13oz BIG':'6oz SMALL'} · pallet ${fmt(x.pallet)}</b>`:''}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.transFrom?` · <b style="color:#2f5da8">🔄 NEW transition can (replaces ${x.transFrom})</b>`:''}${x.transTo?` · <b style="color:#b06d00">🔄 OLD transition can${x.transToReady?' — demand moved to '+x.transTo:' → '+x.transTo+' (not yet ready)'}</b>`:''}${goesInto?`<br>→ goes into: ${goesInto}`:''}</div></div><button class="x" id="mx">✕</button></div>
     <div class="mbody">
       <div class="statstrip">
         <div class="statbox stat-oh">
@@ -3199,6 +3205,8 @@ $('#showAllBtn').onclick=()=>{state.showAll=!state.showAll;$('#showAllBtn').clas
 ['setLT','setBuf','setTruck','setCov','setFLT','setMOQ','setMinSwap','setStale','setRemnant'].forEach(id=>$('#'+id).oninput=()=>compute());
 $('#setDscLock').onchange=()=>compute();
 $('#setComanMin').oninput=()=>{state.comanMin=Math.max(0,+$('#setComanMin').value||0);compute();};
+$('#setFloorMin').oninput=()=>{state.floorMin=Math.max(0,+$('#setFloorMin').value||0);compute();};
+$('#setFloorMax').oninput=()=>{state.floorMax=Math.max(1,+$('#setFloorMax').value||1);compute();};
 $('#setMinDOS').oninput=()=>{state.gMinDOS=Math.max(0,+$('#setMinDOS').value||0);compute();};
 $('#setIdealDOS').oninput=()=>{state.gIdealDOS=Math.max(1,+$('#setIdealDOS').value||1);compute();};
 $('#setMaxDOS').oninput=()=>{state.gMaxDOS=Math.max(1,+$('#setMaxDOS').value||1);compute();};
