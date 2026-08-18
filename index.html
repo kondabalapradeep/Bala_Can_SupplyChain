@@ -3037,17 +3037,19 @@ function openModal(code){
       const b=Math.max(0,balAt(Math.min(day+1,H))); // stock has drawn down to when this PO lands
       rows.push(`<div class="db-row add"><span>+ PO ${p.po} arrives ${dstr(p.date)} · ${fmt(p.qty)}</span><b>on hand ${fmt(Math.round(b))} → ${(b/daily).toFixed(1)} days</b></div>`);
     }
-    let landed=null,landDay=null;
+    let landed=null,landDay=null,drawnDays=null,orderDays=null;
     if(x.suggest>0){
       landDay=x.needBy!=null?Math.max(0,x.needBy):Math.max(0,(x.orderBy!=null?x.orderBy+x.lt:x.lt));
-      const b=Math.max(0,balAt(Math.min(landDay,H)))+x.suggest; // lands after current stock has run down
-      landed=b/daily;
+      const drawn=Math.max(0,balAt(Math.min(landDay,H)));   // on-hand once it has drawn down to the day the order lands
+      drawnDays=drawn/daily;orderDays=x.suggest/daily;
+      const b=drawn+x.suggest;landed=b/daily;
       const placeBy=x.orderBy!=null?(x.orderBy<=0?'today':dstr(addD(T,x.orderBy))):dstr(addD(T,Math.max(0,landDay-(x.lt||0))));
-      rows.push(`<div class="db-row sug"><span>+ Suggested order · ${fmt(x.suggest)} · <b>place by ${placeBy}</b> → arrives ~${dstr(addD(T,landDay))}</span><b>on hand ${fmt(Math.round(b))} → ${landed.toFixed(1)} days</b></div>`);
+      rows.push(`<div class="db-row"><span>↓ Drawn down by the time it arrives (~${dstr(addD(T,landDay))})</span><b>on hand ${fmt(Math.round(drawn))} → ${drawnDays.toFixed(1)} days</b></div>`);
+      rows.push(`<div class="db-row sug"><span>+ Suggested order · ${fmt(x.suggest)} · <b>place by ${placeBy}</b> (adds ~${orderDays.toFixed(1)} days)</span><b>on hand ${fmt(Math.round(b))} → ${landed.toFixed(1)} days</b></div>`);
     }
     const bandTxt=(x.bMin!=null&&x.bMax!=null)?` Your policy: hold <b>${x.bMin}–${x.bMax} days</b>.`:'';
     const finalMsg=landed!=null
-      ? `The suggested order lands <b>after current stock has drawn down</b>, bringing days of supply back to about <b>${landed>=180?'180+':landed.toFixed(1)} days</b> — ${(x.bMax!=null&&landed>x.bMax+1)?`<b style="color:#b06d00">above your ${x.bMax}-day max</b>`:`within your ${x.bMax!=null?x.bMax+'-day max':'band'}`}.${bandTxt}`
+      ? `You hold <b>${dosNow.toFixed(1)} days</b> now. By the time a new order arrives (~${dstr(addD(T,landDay))}, ${x.lt||28}-day lead), that draws down to about <b>${drawnDays.toFixed(1)} days</b>; the <b>${fmt(x.suggest)}</b>-can order adds ~<b>${orderDays.toFixed(1)} days</b>, bringing you back to <b>${landed>=180?'180+':landed.toFixed(1)} days</b> — ${(x.bMax!=null&&landed>x.bMax+1)?`<b style="color:#b06d00">above your ${x.bMax}-day max</b>`:`within your ${x.bMax!=null?x.bMax+'-day max':'band'}`}.${bandTxt}`
       : `As each PO lands, on-hand days of supply is as shown above (stock draws down in between).${bandTxt}`;
     return `<div class="dosboost">
       <div class="db-h">⏱ How the incoming orders extend days of supply</div>
