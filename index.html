@@ -949,26 +949,44 @@ function parsePA(wb){
   }
   return fg;
 }
+function hdrDate(v){
+  if(v instanceof Date&&!isNaN(v))return new Date(v.getFullYear(),v.getMonth(),v.getDate());
+  if(typeof v==='number'&&v>40000&&v<80000){const d=new Date(Date.UTC(1899,11,30)+v*864e5);return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());}
+  const s=String(v==null?'':v).trim();const m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/)||s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if(m){if(m[1].length===4)return new Date(+m[1],+m[2]-1,+m[3]);return new Date(+m[3],+m[1]-1,+m[2]);}
+  return null;
+}
+function fgProdDaily(fg,T,H){
+  // Per-day FG production (cases/day) from the plan. Prefers the WEEKLY dated columns (used directly, qty/7 across each week);
+  // falls back to P01–P12 period totals spread across the period only if there are no weekly columns.
+  const pp=state.prodPlan&&state.prodPlan[fg];if(!pp)return null;
+  const arr=new Float64Array(H);
+  if(pp.weekly&&pp.weekly.length){
+    for(const wk of pp.weekly){if(!wk.date||!(wk.qty>0))continue;const d0=Math.round((wk.date-T)/DAY);for(let dd=d0;dd<d0+7;dd++)if(dd>=0&&dd<H)arr[dd]+=wk.qty/7;}
+  }else if(pp.periods){
+    for(let pi=0;pi<12;pi++){const P=FISCAL26[pi];if(!P||P.ed<T)continue;const so=Math.round((P.sd-T)/DAY),eo=Math.round((P.ed-T)/DAY);if(so>=H)break;const fullDays=Math.round((P.ed-P.sd)/DAY)+1;const r=(pp.periods[pi]||0)/fullDays;for(let dd=Math.max(0,so);dd<=Math.min(H-1,eo);dd++)arr[dd]+=r;}
+  }
+  return arr;
+}
 function parseProdPlan(wb){
-  // 13-week / period FG production plan: Item Code (FG) + P01 FCST..P12 FCST columns. Returns {fg:[p1..p12]}.
   for(const sn of wb.SheetNames){
     const r=rws(wb.Sheets[sn]);
-    const h=(r[0]||[]).map(x=>String(x||'').trim());
-    const hl=h.map(x=>x.toLowerCase());
+    const h=(r[0]||[]);const hl=h.map(x=>String(x==null?'':x).trim().toLowerCase());
     const iCode=hl.findIndex(x=>x.includes('item code')||x==='item'||x==='fg');
     const iDesc=hl.findIndex(x=>x.includes('description'));
-    const perCols=[];
-    for(let c=0;c<h.length;c++){const m=hl[c].match(/p\s*0?(\d{1,2})\s*fcst/);if(m){const p=+m[1];if(p>=1&&p<=12)perCols.push({idx:c,p});}}
-    if(iCode<0||perCols.length<3)continue;
+    const wkCols=[];for(let c=0;c<h.length;c++){const dt=hdrDate(h[c]);if(dt)wkCols.push({idx:c,date:dt});}
+    const perCols=[];for(let c=0;c<h.length;c++){const m=hl[c].match(/p\s*0?(\d{1,2})\s*fcst/);if(m){const p=+m[1];if(p>=1&&p<=12)perCols.push({idx:c,p});}}
+    if(iCode<0||(wkCols.length<3&&perCols.length<3))continue;
     const plan={},desc={};let any=false;
     for(let i=1;i<r.length;i++){
       const code=String(r[i][iCode]==null?'':r[i][iCode]).trim();
       if(!code||/total/i.test(code))continue;
-      const pers=new Array(12).fill(0);let has=false;
-      for(const pc of perCols){const v=+r[i][pc.idx];if(!isNaN(v)&&v){pers[pc.p-1]=v;has=true;}}
-      if(has){plan[code]=pers;if(iDesc>=0)desc[code]=String(r[i][iDesc]||'').trim();any=true;}
+      let weekly=null,periods=null,has=false;
+      if(wkCols.length>=3){weekly=wkCols.map(wc=>({date:wc.date,qty:+r[i][wc.idx]||0}));if(weekly.some(x=>x.qty>0))has=true;}
+      if(perCols.length>=3){periods=new Array(12).fill(0);for(const pc of perCols){const v=+r[i][pc.idx];if(!isNaN(v))periods[pc.p-1]=v;}if(!has&&periods.some(v=>v>0))has=true;}
+      if(has){plan[code]={weekly,periods};if(iDesc>=0)desc[code]=String(r[i][iDesc]||'').trim();any=true;}
     }
-    return any?{plan,desc}:null;
+    return any?{plan,desc,weekly:wkCols.length>=3}:null;
   }
   return null;
 }
@@ -1198,6 +1216,25 @@ function planBuckets(mode,T){ // forward-looking buckets from today within the d
   }
   return list;
 }
+// Production-plan buckets built from the plan FILE'S OWN weekly dated columns — so each cell is exactly
+// that week's plan quantity (× cans-per-case), never day-spread or re-bucketed into fiscal weeks.
+function ppWeekDates(T){
+  const set=new Map();
+  for(const fg in (state.prodPlan||{})){const pp=state.prodPlan[fg];if(pp&&pp.weekly)for(const wk of pp.weekly){if(wk.date)set.set(+wk.date,wk.date);}}
+  const out=[];for(const d of [...set.values()].sort((a,b)=>a-b)){const ed=addD(d,6);if(ed<T)continue;out.push({date:d,sd:d,ed});}
+  return out;
+}
+function ppBuckets(mode,T){
+  const wks=ppWeekDates(T);
+  const mk=(label,sub,sd,ed,cur,weekDates)=>({label,sub,sd,ed,so:Math.max(0,Math.round((sd-T)/DAY)),eo:Math.max(0,Math.round((ed-T)/DAY)),cur,partial:false,weekDates});
+  if(mode==='per'){
+    const byP=new Map();
+    for(const w of wks){const per=FISCAL26.find(p=>w.date>=p.sd&&w.date<=p.ed);const key=per?per.p:0;if(!byP.has(key))byP.set(key,{per,weeks:[]});byP.get(key).weeks.push(w);}
+    const out=[];for(const{per,weeks}of byP.values()){const sd=weeks[0].sd,ed=weeks[weeks.length-1].ed;out.push(mk(per?'P'+per.p:'—',dstr(sd)+'–'+dstr(ed),sd,ed,per?(T>=per.sd&&T<=per.ed):false,weeks.map(w=>+w.date)));}
+    return out;
+  }
+  return wks.map(w=>mk('Wk '+dstr(w.sd),dstr(w.sd)+'–'+dstr(w.ed),w.sd,w.ed,T>=w.sd&&T<=w.ed,[+w.date]));
+}
 
 /* ---------- engine ---------- */
 function dim(y,p){return new Date(y,p,0).getDate();}
@@ -1219,14 +1256,15 @@ function compute(){
     const linesQty=lines.reduce((a,l)=>a+l.qty,0);
     // ---- per-DAY demand: forecast REMAINDER spread by fiscal period + firm PA as SPIKES on ship dates + FG on-hand netted ----
     const rate=new Float64Array(H);let hasFc=false,hasPA=false,lastEo=-1,lastR=0;
+    const ppDaily=fgProdDaily(fg,T,H);   // per-day FG production from the plan (weekly-based)
     // 1) unfirmed forecast per period = period forecast MINUS firm PA already placed that period, spread across the period's days
     for(let pi=0;pi<FISCAL26.length;pi++){
       const P=FISCAL26[pi];if(P.ed<T)continue;
       const so=Math.round((P.sd-T)/DAY),eo=Math.round((P.ed-T)/DAY);if(so>=H)break;
       const fullDays=Math.round((P.ed-P.sd)/DAY)+1;
       const periodFcRaw=f?(+f[P.p-1]||0):0;
-      const ppFc=(state.prodPlan&&state.prodPlan[fg])?(+state.prodPlan[fg][P.p-1]||0):0;
-      const periodFc=Math.max(periodFcRaw,ppFc);                           // production plan acts as a floor on the period demand — board orders for it too
+      let ppFc=0;if(ppDaily){for(let dd=Math.max(0,so);dd<=Math.min(H-1,eo);dd++)ppFc+=ppDaily[dd];} // plan production total in this period
+      const periodFc=Math.max(periodFcRaw,ppFc);                              // production plan acts as a floor on the period demand — board orders for it too
       let periodPA=0;for(const l of lines){if(l.date&&l.date>=P.sd&&l.date<=P.ed)periodPA+=l.qty;}
       if(periodFc>0)hasFc=true;
       const remFc=Math.max(0,periodFc-periodPA);                              // firm PA nets into forecast; only the remainder is unfirmed
@@ -1255,17 +1293,17 @@ function compute(){
     if(tr.oldCan)transByOld[tr.oldCan]=tr;
     if(tr.newCan)transByNew[tr.newCan]=tr;
   }
-  // ---- production plan: per-can period demand (for board callouts / why / coverage card) ----
+  // ---- production plan: per-can DAILY production (weekly-based) for board callouts / why / coverage card ----
   const ppByCan={};let ppCurPi=0;
   for(let i=0;i<FISCAL26.length;i++){if(T>=FISCAL26[i].sd&&T<=FISCAL26[i].ed){ppCurPi=i;break;}if(T>FISCAL26[i].ed)ppCurPi=Math.min(i+1,11);}
   if(state.prodPlan){
     for(const fg in state.prodPlan){
-      const pers=state.prodPlan[fg];const comps=state.billMap[fg];if(!comps)continue;
+      const daily=fgProdDaily(fg,T,H);const comps=state.billMap[fg];if(!daily||!comps)continue;
       for(const comp of comps){
         let target=comp.can;const tr=transByOld[comp.can];if(tr&&tr.ready&&tr.newCan)target=tr.newCan;
-        const cm=ppByCan[target]=ppByCan[target]||{periodDem:new Array(12).fill(0),fgs:new Set()};
+        const cm=ppByCan[target]=ppByCan[target]||{ppDay:new Float64Array(H),fgs:new Set()};
         cm.fgs.add(fg);
-        for(let p=0;p<12;p++)cm.periodDem[p]+=(pers[p]||0)*comp.qty;
+        for(let dd=0;dd<H;dd++)cm.ppDay[dd]+=daily[dd]*comp.qty;
       }
     }
   }
@@ -1404,12 +1442,11 @@ function compute(){
     const ppInfo=ppByCan[code];const onProdPlan=!!ppInfo;
     let ppWeekly=0,ppCoverDays=null,ppFgs=[],ppTotal=0;
     if(ppInfo){
-      ppFgs=[...ppInfo.fgs];
-      const cw=FISCAL26[ppCurPi]?FISCAL26[ppCurPi].w:4;ppWeekly=Math.round((ppInfo.periodDem[ppCurPi]||0)/(cw||4));
-      for(let pi=ppCurPi;pi<12;pi++)ppTotal+=ppInfo.periodDem[pi]||0;
-      let bal=onHand,cd=0,done=false;
-      for(let pi=ppCurPi;pi<12&&!done;pi++){const P=FISCAL26[pi];const days=Math.round((P.ed-P.sd)/DAY)+1;const dr=(ppInfo.periodDem[pi]||0)/days;
-        for(let dcnt=0;dcnt<days;dcnt++){if(dr<=0){cd++;continue;}if(bal-dr<=0){done=true;break;}bal-=dr;cd++;}}
+      ppFgs=[...ppInfo.fgs];const pd=ppInfo.ppDay;
+      const cs=Math.max(0,Math.round((FISCAL26[ppCurPi].sd-T)/DAY));
+      for(let dd=Math.max(0,cs);dd<Math.min(H,cs+7);dd++)ppWeekly+=pd[dd]||0;ppWeekly=Math.round(ppWeekly);
+      for(let dd=0;dd<H;dd++)ppTotal+=pd[dd]||0;
+      let bal=onHand,cd=0,done=false;for(let dd=0;dd<H&&!done;dd++){const dr=pd[dd]||0;if(dr<=0){cd++;continue;}if(bal-dr<=0){done=true;break;}bal-=dr;cd++;}
       ppCoverDays=done?cd:9999;
     }
     const custMatch=state.cust.size?fgAll.some(dd=>dd.custMatch):true;
@@ -2093,32 +2130,35 @@ function prodPlanData(){
   const T=today();const H=180;
   const transByOld={};for(const tr of (state.transitions||[])){if(tr.oldCan&&tr.ready&&tr.newCan)transByOld[tr.oldCan]=tr;}
   let curPi=0;for(let i=0;i<FISCAL26.length;i++){if(T>=FISCAL26[i].sd&&T<=FISCAL26[i].ed){curPi=i;break;}if(T>FISCAL26[i].ed)curPi=Math.min(i+1,11);}
+  const weeks=ppWeekDates(T);                          // the plan's own future weeks
   const canMap={};const missingFg=[];
   for(const fg in state.prodPlan){
-    const pers=state.prodPlan[fg];const comps=state.billMap[fg];
-    if(!comps){if(pers.slice(curPi).some(v=>v>0))missingFg.push(fg);continue;}
+    const pp=state.prodPlan[fg];const comps=state.billMap[fg];
+    const hasQty=pp&&((pp.weekly&&pp.weekly.some(w=>w.qty>0))||(pp.periods&&pp.periods.some(v=>v>0)));
+    if(!comps){if(hasQty)missingFg.push(fg);continue;}
+    // per-FG weekly cases keyed by plan-week date (weekly columns used DIRECTLY — no day-spread)
+    const fgWk=new Map();
+    if(pp.weekly&&pp.weekly.length){for(const w of pp.weekly){if(w.date&&w.qty)fgWk.set(+w.date,(fgWk.get(+w.date)||0)+w.qty);}}
     for(const comp of comps){
       let target=comp.can;const tr=transByOld[comp.can];if(tr)target=tr.newCan;
-      const cm=canMap[target]=canMap[target]||{fgs:new Set(),periodDem:new Array(12).fill(0)};
+      const cm=canMap[target]=canMap[target]||{fgs:new Set(),wk:new Map()};
       cm.fgs.add(fg);
-      for(let p=0;p<12;p++)cm.periodDem[p]+=(pers[p]||0)*comp.qty;
+      for(const[d,cases]of fgWk){cm.wk.set(d,(cm.wk.get(d)||0)+cases*comp.qty);}   // cans = cases × cans-per-case
     }
   }
   const rows=[];
   for(const code in canMap){
-    const cm=canMap[code];
+    const cm=canMap[code];const wk=cm.wk;
     const row=state.rows.find(r=>r.code===code);const st=state.stock[code];
     const onHand=row?row.onHand:(st?st.onHand:0);
     const basis=row?(row.counted?'physical count':(row.adjusted?'system (adjusted in MAS)':'NetStock')):'NetStock';
     const desc=(row?row.desc:(state.canDesc[code]||''))||'';
     const arrArr=row?row.arrArr:new Float64Array(H);
-    // production-plan-only daily demand (period spread across its days)
-    const ppDem=new Float64Array(H);
-    for(let pi=0;pi<12;pi++){const P=FISCAL26[pi];if(P.ed<T)continue;const so=Math.max(0,Math.round((P.sd-T)/DAY)),eo=Math.round((P.ed-T)/DAY);if(so>=H)break;const fullDays=Math.round((P.ed-P.sd)/DAY)+1;const r=(cm.periodDem[pi]||0)/fullDays;for(let dd=so;dd<=Math.min(H-1,eo);dd++)ppDem[dd]=r;}
-    let bal=onHand,coverDays=0,done=false;for(let dd=0;dd<H&&!done;dd++){const dr=ppDem[dd];if(dr<=0){coverDays++;continue;}if(bal-dr<=0){done=true;break;}bal-=dr;coverDays++;}if(!done)coverDays=9999;
-    const curWeeks=FISCAL26[curPi]?FISCAL26[curPi].w:4;const weekly=(cm.periodDem[curPi]||0)/(curWeeks||4);
-    let totPlan=0;for(let pi=curPi;pi<12;pi++)totPlan+=cm.periodDem[pi]||0;
-    rows.push({code,desc,fgs:[...cm.fgs],periodDem:cm.periodDem,ppDem,arrArr,onHand,basis,weekly:Math.round(weekly),coverDays,totPlan:Math.round(totPlan),fgTop:row?row.fgTop:[...cm.fgs].join(', '),floor:row?row.floor:false,cls:row?row.cls:null,orderBy:row?row.orderBy:null,suggest:row?row.suggest:0,pallet:row?row.pallet:(st?sizeOf(st.desc||desc).pallet:1900),incoming:row?row.incoming:0,lt:row?row.lt:28});
+    // coverage = how many plan weeks the current on-hand lasts (in days ≈ weeks×7)
+    let bal=onHand,coverDays=0,done=false;for(const w of weeks){const need=wk.get(+w.date)||0;if(need<=0){coverDays+=7;continue;}if(bal-need<=0){coverDays+=Math.max(0,Math.round(bal/need*7));done=true;break;}bal-=need;coverDays+=7;}if(!done)coverDays=weeks.length?coverDays:9999;if(!weeks.length)coverDays=9999;
+    const curW=weeks.find(w=>T>=w.sd&&T<=addD(w.sd,6))||weeks[0];const weekly=curW?(wk.get(+curW.date)||0):0;
+    let totPlan=0;for(const w of weeks)totPlan+=wk.get(+w.date)||0;
+    rows.push({code,desc,fgs:[...cm.fgs],wk,arrArr,onHand,basis,weekly:Math.round(weekly),coverDays,totPlan:Math.round(totPlan),fgTop:row?row.fgTop:[...cm.fgs].join(', '),floor:row?row.floor:false,cls:row?row.cls:null,orderBy:row?row.orderBy:null,suggest:row?row.suggest:0,pallet:row?row.pallet:(st?sizeOf(st.desc||desc).pallet:1900),incoming:row?row.incoming:0,lt:row?row.lt:28});
   }
   rows.sort((a,b)=>b.totPlan-a.totPlan);
   return {rows,curPi,missingFg,T};
@@ -2130,11 +2170,11 @@ function renderProdPlan(){
   const ppMatch=r=>{if(!q)return true;return q.split(',').map(s=>s.trim()).filter(Boolean).some(p=>String(r.code).toLowerCase().includes(p)||(r.desc||'').toLowerCase().includes(p)||r.fgs.some(f=>String(f).toLowerCase().includes(p)));};
   const rows=dd.rows.filter(ppMatch);const mode=state.ppMode||'wk';
   if(state.ppView==='spread'){renderProdSpread(el,dd,rows,mode,T);return;}
-  const bks=planBuckets(mode,T);const now=fiscalNow(T);
+  const bks=ppBuckets(mode,T);const now=fiscalNow(T);
   const nowTxt=now?`Today <b>${dlong(T)}</b> · fiscal <b>P${now.per.p}</b>${now.wk?` · <b>Week ${now.wk.wk}</b> (${dstr(now.wk.sd)}–${dstr(now.wk.ed)})`:''} of ${now.per.w} — production-plan consumption`:'production-plan consumption';
   const data=rows.map(r=>{
     let bal=r.onHand,totNeed=0,totArr=0;
-    const cells=bks.map(b=>{let need=0,arr=0;for(let i=b.so;i<=b.eo;i++){need+=r.ppDem[i]||0;arr+=r.arrArr[i]||0;}bal+=arr-need;totNeed+=need;totArr+=arr;return {need,arr,eop:bal};});
+    const cells=bks.map(b=>{let need=0,arr=0;for(const d of b.weekDates)need+=r.wk.get(d)||0;for(let i=b.so;i<=b.eo;i++)arr+=r.arrArr[i]||0;bal+=arr-need;totNeed+=need;totArr+=arr;return {need,arr,eop:bal};});
     return {r,cells,totNeed,totArr,endFinal:cells.length?cells[cells.length-1].eop:r.onHand};
   });
   const under2=rows.filter(r=>r.coverDays<14).length,under4=rows.filter(r=>r.coverDays>=14&&r.coverDays<28).length;
@@ -2166,7 +2206,7 @@ function renderProdPlan(){
     <div class="ckpi ok"><div class="cn">${rows.length-under2-under4}</div><div class="cl">4+ weeks cover</div></div>
   </div>
   ${dd.missingFg&&dd.missingFg.length?`<div class="secnote">⚠️ ${dd.missingFg.length} plan item(s) not found in the BOM (no can demand): ${dd.missingFg.slice(0,12).join(', ')}${dd.missingFg.length>12?'…':''}</div>`:''}
-  <div class="secnote">Consumption per ${mode==='wk'?'fiscal week':'fiscal period'} from the <b>production plan</b> (plan FG × BOM cans-per-case), from today forward. <b>end</b> = projected on-hand after the bucket (on hand − consumption + <span style="color:var(--green)">PO arrivals</span>) — red = shortfall by then. On-hand basis follows your count rule (physical if counted &amp; not adjusted, else NetStock). Click any can # for full detail. These cans are <b>also ordered for on the Board</b>. Horizon: 180 days.</div>
+  <div class="secnote">Each cell is <b>taken straight from the production plan's ${mode==='wk'?'weekly':'period'} column × BOM cans-per-case</b> — the plan week's cases for the finished good(s), multiplied by cans per case. Nothing is re-spread or re-bucketed. <b>end</b> = projected on-hand after the ${mode==='wk'?'week':'period'} (on hand − consumption + <span style="color:var(--green)">PO arrivals</span>) — red = shortfall by then. On-hand basis follows your count rule (physical if counted &amp; not adjusted, else NetStock). Click any can # for full detail.</div>
   <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}
     <tr class="tot"><td class="stick c1"></td><td class="stick c2">TOTAL — all cans</td><td class="stick c3"></td><td class="stick c4">${fmt(Math.round(rows.reduce((a,r)=>a+r.onHand,0)))}</td>${tot}${gtot}</tr>
   </tbody></table></div>`;
@@ -2182,7 +2222,7 @@ function renderProdPlan(){
 function spreadPlan(rows,bks,targetWeeks){
   const MOQ=+$('#setMOQ').value||5000;const T=today();
   return rows.map(r=>{
-    const cons=bks.map(b=>{let n=0;for(let i=b.so;i<=b.eo;i++)n+=r.ppDem[i]||0;return n;});
+    const cons=bks.map(b=>{let n=0;for(const d of b.weekDates)n+=r.wk.get(d)||0;return n;});
     const exist=bks.map(b=>{let a=0;for(let i=b.so;i<=b.eo;i++)a+=r.arrArr[i]||0;return a;});
     const target=bks.map((b,w)=>{let t=0;for(let k=1;k<=targetWeeks;k++)if(cons[w+k]!=null)t+=cons[w+k];return t;});
     let inv=r.onHand,totNew=0;const cells=[],newOrders=[];
@@ -2203,7 +2243,7 @@ function spreadPlan(rows,bks,targetWeeks){
   });
 }
 function renderProdSpread(el,dd,rows,mode,T){
-  const bks=planBuckets(mode,T);const tgt=state.ppTarget||2;const now=fiscalNow(T);
+  const bks=ppBuckets(mode,T);const tgt=state.ppTarget||2;const now=fiscalNow(T);
   const nowTxt=now?`Today <b>${dlong(T)}</b> · fiscal <b>P${now.per.p}</b> — recommended order spread to hold <b>${tgt} weeks</b> of cover at each week-end`:'';
   const sp=spreadPlan(rows,bks,tgt);
   const needMore=sp.filter(s=>s.totNew>0),haveExtra=sp.filter(s=>s.totNew===0&&s.removable>0);
@@ -2264,7 +2304,7 @@ function exportPOList(allNew,tgt){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,tgt+'wk PO plan');XLSX.writeFile(wb,'PO_Placement_Plan_'+tgt+'wk.xlsx');toast('Downloaded '+allNew.length+' PO(s)');
 }
 function exportProdSpread(){
-  const dd=prodPlanData();if(!dd)return;const T=today();const mode=state.ppMode||'wk';const bks=planBuckets(mode,T);const tgt=state.ppTarget||2;
+  const dd=prodPlanData();if(!dd)return;const T=today();const mode=state.ppMode||'wk';const bks=ppBuckets(mode,T);const tgt=state.ppTarget||2;
   const q=(state.q||'').trim().toLowerCase();
   const ppMatch=r=>{if(!q)return true;return q.split(',').map(s=>s.trim()).filter(Boolean).some(p=>String(r.code).toLowerCase().includes(p)||(r.desc||'').toLowerCase().includes(p)||r.fgs.some(f=>String(f).toLowerCase().includes(p)));};
   const sp=spreadPlan(dd.rows.filter(ppMatch),bks,tgt);if(!sp.length){toast('No data');return;}
@@ -2284,11 +2324,11 @@ function exportProdSpread(){
 }
 function exportProdPlan(){
   const ddx=prodPlanData();if(!ddx||!ddx.rows.length){toast('No production plan data');return;}
-  const T=today();const mode=state.ppMode||'wk';const bks=planBuckets(mode,T);
+  const T=today();const mode=state.ppMode||'wk';const bks=ppBuckets(mode,T);
   const q=(state.q||'').trim().toLowerCase();
   const ppMatch=r=>{if(!q)return true;return q.split(',').map(s=>s.trim()).filter(Boolean).some(p=>String(r.code).toLowerCase().includes(p)||(r.desc||'').toLowerCase().includes(p)||r.fgs.some(f=>String(f).toLowerCase().includes(p)));};
   const rows=ddx.rows.filter(ppMatch);
-  const data=rows.map(r=>{let bal=r.onHand,totNeed=0,totArr=0;const cells=bks.map(b=>{let need=0,arr=0;for(let i=b.so;i<=b.eo;i++){need+=r.ppDem[i]||0;arr+=r.arrArr[i]||0;}bal+=arr-need;totNeed+=need;totArr+=arr;return {need,arr,eop:bal};});return {r,cells,totNeed,totArr,endFinal:cells.length?cells[cells.length-1].eop:r.onHand};});
+  const data=rows.map(r=>{let bal=r.onHand,totNeed=0,totArr=0;const cells=bks.map(b=>{let need=0,arr=0;for(const d of b.weekDates)need+=r.wk.get(d)||0;for(let i=b.so;i<=b.eo;i++)arr+=r.arrArr[i]||0;bal+=arr-need;totNeed+=need;totArr+=arr;return {need,arr,eop:bal};});return {r,cells,totNeed,totArr,endFinal:cells.length?cells[cells.length-1].eop:r.onHand};});
   const aoa=[],merges=[];
   const h1=['Rank','Can #','Description','FG \u2192 goes into','On hand today',''].concat(bks.map(b=>b.label+(b.cur?' \u00b7 NOW':''))).concat(['\u03a3 Horizon total']);
   const h2=['','','','','','Line'].concat(bks.map(b=>b.sub+(b.partial?' (part.)':''))).concat(['produce / PO in / end']);
@@ -3566,7 +3606,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v14 · truckfill-95k · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v15 · planweeks-direct · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
