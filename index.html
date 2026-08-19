@@ -1254,38 +1254,43 @@ function compute(){
     const CF=state.cust;
     const lines=pa?(CF.size?pa.lines.filter(l=>CF.has((l.cust||'').trim())):pa.lines):[];
     const linesQty=lines.reduce((a,l)=>a+l.qty,0);
-    // ---- per-DAY demand: forecast REMAINDER spread by fiscal period + firm PA as SPIKES on ship dates + FG on-hand netted ----
-    const rate=new Float64Array(H);let hasFc=false,hasPA=false,lastEo=-1,lastR=0;
-    const ppDaily=fgProdDaily(fg,T,H);   // per-day FG production from the plan (weekly-based)
-    // 1) unfirmed forecast per period = period forecast MINUS firm PA already placed that period, spread across the period's days
+    // ---- per-DAY demand as a PRIORITY STACK: ① firm PA ② production plan ③ forecast-beyond-plan ----
+    // Plan supersedes forecast where it exists (the plan is the real build — it already folds in FG on-hand, forecast
+    // and capacity/overproduction). Forecast fills periods/weeks the plan doesn't reach. PA is the firm portion of the build.
+    const rate=new Float64Array(H),paRate=new Float64Array(H),planRate=new Float64Array(H),fcRate=new Float64Array(H);
+    let hasFc=false,hasPA=false,hasPlan=false,lastEo=-1,lastFcR=0;
+    const pw=(state.prodPlan&&state.prodPlan[fg]&&state.prodPlan[fg].weekly)?state.prodPlan[fg].weekly.filter(w=>w.date&&addD(w.date,6)>=T):[];
     for(let pi=0;pi<FISCAL26.length;pi++){
       const P=FISCAL26[pi];if(P.ed<T)continue;
       const so=Math.round((P.sd-T)/DAY),eo=Math.round((P.ed-T)/DAY);if(so>=H)break;
+      const d0=Math.max(0,so),d1=Math.min(H-1,eo);
       const fullDays=Math.round((P.ed-P.sd)/DAY)+1;
       const periodFcRaw=f?(+f[P.p-1]||0):0;
-      let ppFc=0;if(ppDaily){for(let dd=Math.max(0,so);dd<=Math.min(H-1,eo);dd++)ppFc+=ppDaily[dd];} // plan production total in this period
-      const periodFc=Math.max(periodFcRaw,ppFc);                              // production plan acts as a floor on the period demand — board orders for it too
+      let planP=0;for(const w of pw){if(w.date>=P.sd&&w.date<=P.ed)planP+=w.qty||0;}     // EXACT plan cases this period (weekly)
       let periodPA=0;for(const l of lines){if(l.date&&l.date>=P.sd&&l.date<=P.ed)periodPA+=l.qty;}
-      if(periodFc>0)hasFc=true;
-      const remFc=Math.max(0,periodFc-periodPA);                              // firm PA nets into forecast; only the remainder is unfirmed
-      const r=fullDays>0?remFc/fullDays:0;
-      for(let dd=Math.max(0,so);dd<=Math.min(H-1,eo);dd++)rate[dd]+=r;
-      lastEo=Math.min(H-1,eo);lastR=r;
+      if(periodFcRaw>0)hasFc=true;if(planP>0)hasPlan=true;
+      const base=Math.max(planP,periodPA);                                    // the committed build (plan, or firm PA if it exceeds the plan)
+      const planNet=Math.max(0,planP-periodPA);                               // plan build beyond the firm PA it already covers
+      const fcBeyond=Math.max(0,periodFcRaw-base);                            // forecast ONLY beyond the committed build (no double-count)
+      // plan → time-phased by its OWN weekly columns (matches the Consumption Plan page), scaled to net out firm PA
+      if(planP>0){const scale=planNet/planP;for(const w of pw){if(w.date>=P.sd&&w.date<=P.ed){const wd=Math.round((w.date-T)/DAY),r=(w.qty||0)/7*scale;for(let dd=wd;dd<wd+7;dd++){const idx=Math.max(0,dd);if(idx<H)planRate[idx]+=r;}}}}  // full week conserved (elapsed days pile onto today)
+      const fr=fullDays>0?fcBeyond/fullDays:0;for(let dd=d0;dd<=d1;dd++)fcRate[dd]+=fr;   // forecast-beyond spread across the period
+      lastEo=d1;lastFcR=fr;
     }
-    if(hasFc&&lastEo>=0&&lastEo<H-1)for(let dd=lastEo+1;dd<H;dd++)rate[dd]+=lastR; // extend the forecast tail ONLY when a forecast exists
-    // 2) firm PA on the actual ship dates (spikes) — with no forecast, demand ends after the sales orders (no lingering rate)
-    for(const l of lines){if(l.qty>0){hasPA=true;const dd=l.date?Math.round((l.date-T)/DAY):0;const at=dd<0?0:(dd<H?dd:null);if(at!=null)rate[at]+=l.qty;}}
-    const noForecast=!hasFc&&hasPA;                                            // firm sales orders but NO forecast at all
-    if(!hasFc&&!hasPA)continue;
-    // 3) net FG on-hand against the EARLIEST demand — FG stock satisfies the first orders/forecast, only the shortfall needs cans
+    if(hasFc&&lastEo>=0&&lastEo<H-1)for(let dd=lastEo+1;dd<H;dd++)fcRate[dd]+=lastFcR;   // forecast tail rolls on; plan ends at its horizon
+    for(const l of lines){if(l.qty>0){hasPA=true;const dd=l.date?Math.round((l.date-T)/DAY):0;const at=dd<0?0:(dd<H?dd:null);if(at!=null)paRate[at]+=l.qty;}}  // firm PA on ship dates
+    const noForecast=!hasFc&&hasPA;
+    if(!hasFc&&!hasPA&&!hasPlan)continue;
+    // FG on-hand covers demand in PRIORITY ORDER — PA first, then plan, then forecast
     const qoh=pa?pa.qoh:0;let coh=qoh;
-    for(let dd=0;dd<H&&coh>0;dd++){const cov=Math.min(coh,rate[dd]);rate[dd]-=cov;coh-=cov;}
-    let daily=0;for(let dd=0;dd<60;dd++)daily+=rate[dd];daily/=60;             // near-term (60-day) average rate for DOS / band
+    for(const L of [paRate,planRate,fcRate]){for(let dd=0;dd<H&&coh>0;dd++){const cov=Math.min(coh,L[dd]);L[dd]-=cov;coh-=cov;}}
+    for(let dd=0;dd<H;dd++)rate[dd]=paRate[dd]+planRate[dd]+fcRate[dd];
+    let daily=0;for(let dd=0;dd<60;dd++)daily+=rate[dd];daily/=60;
     if(daily<=0)daily=rate.reduce((a,b)=>a+b,0)/H;
     let paDay=null,paCust=null,paDate=null;
     if(lines.length){const ls=[...lines].filter(l=>l.date).sort((a,b)=>a.date-b.date);let c=0;for(const l of ls){c+=l.qty;if(c>qoh){paDay=Math.max(0,Math.round((l.date-T)/DAY));paCust=l.cust;paDate=l.date;break;}}}
     const coverF=Math.min(90,daily>0?qoh/daily:0);
-    fgUse[fg]={rate,daily,start:0,coverF,paDay,paCust,paDate,qoh,noForecast,hasPA,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
+    fgUse[fg]={rate,paRate,planRate,fcRate,daily,start:0,coverF,paDay,paCust,paDate,qoh,noForecast,hasPA,hasPlan,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
   }
   // ---- item transitions: redirect demand from an OLD can to its NEW can (when ready for order) ----
   const transByOld={},transByNew={};
@@ -1307,7 +1312,7 @@ function compute(){
       }
     }
   }
-  const dem={},drivers={};
+  const dem={},drivers={},paDem={},planDem={},fcDem={};
   for(const fg in fgUse){
     const u=fgUse[fg];
     for(const comp of state.billMap[fg]){
@@ -1315,9 +1320,12 @@ function compute(){
       const tr=transByOld[comp.can];
       if(tr&&tr.ready&&tr.newCan){targetCan=tr.newCan;movedFrom=comp.can;} // demand moves to the new can
       const arr=dem[targetCan]=dem[targetCan]||new Float64Array(H);
-      const s=Math.max(0,Math.floor(u.start)||0);
-      for(let d=s;d<H;d++)arr[d]+=u.rate[d]*comp.qty;   // per-day rate (varies by period) × cans-per-case
-      (drivers[targetCan]=drivers[targetCan]||[]).push({fg,rate:u.daily*comp.qty,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch,transFrom:movedFrom,noForecast:u.noForecast,hasPA:u.hasPA});
+      const pA=paDem[targetCan]=paDem[targetCan]||new Float64Array(H);
+      const plA=planDem[targetCan]=planDem[targetCan]||new Float64Array(H);
+      const fcA=fcDem[targetCan]=fcDem[targetCan]||new Float64Array(H);
+      const s=Math.max(0,Math.floor(u.start)||0);const q=comp.qty;
+      for(let d=s;d<H;d++){arr[d]+=u.rate[d]*q;pA[d]+=u.paRate[d]*q;plA[d]+=u.planRate[d]*q;fcA[d]+=u.fcRate[d]*q;}   // per-day rate × cans-per-case, kept split by priority layer
+      (drivers[targetCan]=drivers[targetCan]||[]).push({fg,rate:u.daily*comp.qty,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch,transFrom:movedFrom,noForecast:u.noForecast,hasPA:u.hasPA,hasPlan:u.hasPlan});
     }
   }
   // ---- co-manufacturing customers: map cans -> customers, flag co-man cans ----
@@ -1348,6 +1356,8 @@ function compute(){
     const dscOH=state.dsc?state.dsc[code]:null;
     const dscTot=state.dscTot?state.dscTot[code]:null;
     const d=dem[code]||new Float64Array(H);
+    const paA=paDem[code]||new Float64Array(H),planA=planDem[code]||new Float64Array(H),fcA=fcDem[code]||new Float64Array(H);
+    const paTot=paA.reduce((a,b)=>a+b,0),planTot=planA.reduce((a,b)=>a+b,0),fcTot=fcA.reduce((a,b)=>a+b,0);
     const daily=d.slice(0,60).reduce((a,b)=>a+b,0)/60;
     const posAll=(state.po&&state.po[code])?[...state.po[code]].map(p=>{
       const ed=state.expDec&&state.expDec[p.po];
@@ -1453,6 +1463,9 @@ function compute(){
     // inventory-band status for every can with demand
     let bandMinCans=null,bandMaxCans=null,bandStatus=null;
     if(daily>0){bandMinCans=bMin*daily;bandMaxCans=bMax*daily;bandStatus=onHand<bandMinCans?'below':(onHand>bandMaxCans?'over':'in');}
+    // priority coverage: allocate current supply (on-hand + open POs) to PA → plan → forecast, in that order
+    let psup=onHand+incoming;const paCov=Math.min(psup,paTot);psup-=paCov;const planCov=Math.min(psup,planTot);psup-=planCov;const fcCov=Math.min(psup,fcTot);
+    const layers={pa:paTot,plan:planTot,fc:fcTot,paShort:Math.max(0,paTot-paCov),planShort:Math.max(0,planTot-planCov),fcShort:Math.max(0,fcTot-fcCov)};
     out.push({code,desc:st.desc,supplier:st.supplier,ns:st.ns,ss:st.ss,onHand,counted,cnt,sysOnHand:st.onHand,
       oz:sz.oz,size:sz.size,pallet:sz.pallet,
       adjusted:!!(cnt&&cnt.adjusted&&cnt.counted),cntEntry:cnt,
@@ -1461,7 +1474,7 @@ function compute(){
       transType:(transByOld[code]||transByNew[code])?(transByOld[code]||transByNew[code]).type:null,
       transFg:(transByOld[code]||transByNew[code])?(transByOld[code]||transByNew[code]).fg:null,
       daily,dos,needDay,needBy,orderBy,runout,firstArr,incoming,overduePO,pos,suggest,trucks,lt,cls,pr,varFlag,
-      expedite,expLocked,active,totDem,fgTop,fgFull,paFirst,paOnly,onProdPlan,ppWeekly,ppCoverDays,ppFgs,ppTotal,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll,
+      expedite,expLocked,active,totDem,fgTop,fgFull,paFirst,paOnly,onProdPlan,ppWeekly,ppCoverDays,ppFgs,ppTotal,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll,layers,
       demArr:d,arrArr:arrivals,
       coman,comanCusts:canComanCusts[code]||[],allCusts:canCusts[code]||[],cMin:bMin,cMax:bMax,bMin,bMax,bIdeal,bandSrc,bandMinCans,bandMaxCans,bandStatus,covWin});
   }
@@ -1589,6 +1602,14 @@ function actionOf(x){
 }
 function whyOf(x){
   const T=today();const li=[];const BUF=+$('#setBuf').value||7;
+  if(x.layers&&(x.layers.pa>0||x.layers.plan>0||x.layers.fc>0)){
+    const L=x.layers;const parts=[];
+    if(L.pa>0)parts.push(`① <b>PA (firm orders)</b> ${fmt(Math.round(L.pa))}${L.paShort>0?` — <b style="color:var(--red)">short ${fmt(Math.round(L.paShort))}</b>`:' <b style="color:#177245">covered ✓</b>'}`);
+    if(L.plan>0)parts.push(`② <b>Production plan</b> ${fmt(Math.round(L.plan))}${L.planShort>0?` — <b style="color:var(--red)">short ${fmt(Math.round(L.planShort))}</b>`:' <b style="color:#177245">covered ✓</b>'}`);
+    if(L.fc>0)parts.push(`③ <b>Forecast</b> ${fmt(Math.round(L.fc))}${L.fcShort>0?` — <b style="color:#b06d00">short ${fmt(Math.round(L.fcShort))}</b>`:' <b style="color:#177245">covered ✓</b>'}`);
+    const protect=L.paShort>0?'firm PA — the highest priority':(L.planShort>0?'the production plan':(L.fcShort>0?'forecast — the lowest-priority stretch layer':'nothing further — all three are already covered'));
+    li.push(`🎯 <b>Demand priority (cans over 180 days, satisfied in order):</b> ${parts.join(' &nbsp;·&nbsp; ')}. On-hand + open POs are applied <b>PA first, then plan, then forecast</b>${x.suggest>0?` — so the recommended order is protecting <b>${protect}</b>.`:`; ${protect==='nothing further — all three are already covered'?'all three layers are covered, so no order is needed.':'.'}`}`);
+  }
   if(x.onProdPlan){
     const cov=x.ppCoverDays>=9999?'beyond the plan horizon':((x.ppCoverDays/7).toFixed(1)+' weeks ('+Math.round(x.ppCoverDays)+' days)');
     const need=(x.lt||28)+BUF;const short=x.ppCoverDays<need;
@@ -3606,7 +3627,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v15 · planweeks-direct · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v16 · priority-PA-plan-fc · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
