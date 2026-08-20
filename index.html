@@ -799,6 +799,7 @@ function detect(wb){
     if(h.some(x=>x.includes('expedite'))&&h.some(x=>x.includes('new')&&(x.includes('arriv')||x.includes('date'))))return 'expdec';
     if(h.some(x=>x.includes('decision'))&&h.some(x=>x.includes('existing po')||x.includes('switch to')))return 'swapdec';
   }
+  if(sniffDSCDaily(wb))return 'dsc';
   if(sniffDSCPivot(wb))return 'dsc';
   if(sniffDSC(wb))return 'dsc';
   return null;
@@ -904,6 +905,35 @@ function parseDSC(wb){
     if(!isNaN(q))out[code]=(out[code]||0)+q;
   }
   return out;
+}
+// DSC daily on-hand file: Item Number | Alamance Item Number | Description | Quantity On Hand | Company
+// Keyed on the ALAMANCE item number (the 12xxx can code) — DSC's own 604-/713- number is ignored.
+function sniffDSCDaily(wb){
+  for(const sn of wb.SheetNames){
+    const r=rws(wb.Sheets[sn]);
+    for(let hr=0;hr<Math.min(6,r.length);hr++){
+      const h=(r[hr]||[]).map(x=>String(x||'').trim().toLowerCase());
+      const ic=h.findIndex(x=>x.includes('alamance')&&x.includes('item'));         // the 12xxx can code
+      const iq=h.findIndex(x=>(x.includes('quantity')&&x.includes('hand'))||/on.?hand/.test(x));
+      if(ic>=0&&iq>=0&&ic!==iq)return {sn,hr,ic,iq,ico:h.findIndex(x=>x==='company'),idesc:h.findIndex(x=>x==='description')};
+    }
+  }
+  return null;
+}
+function parseDSCDaily(wb){
+  const m=sniffDSCDaily(wb);if(!m)return null;
+  const r=rws(wb.Sheets[m.sn]);
+  const cur={},co={},desc={};
+  for(let i=m.hr+1;i<r.length;i++){
+    let code=String(r[i][m.ic]==null?'':r[i][m.ic]).trim().replace(/\.0*$/,'').replace(/\.$/,''); // strip trailing dot / .0 (e.g. "12016.")
+    if(!/^12\d{3}$/.test(code))continue;                        // skip the grand-total row and non-can rows
+    const q=+r[i][m.iq];if(isNaN(q))continue;
+    cur[code]=(cur[code]||0)+q;                                 // sum if a can appears under both Alamance & Conagra
+    if(m.ico>=0){const c=String(r[i][m.ico]||'').trim();if(c)(co[code]=co[code]||new Set()).add(c);}
+    if(m.idesc>=0&&!desc[code])desc[code]=String(r[i][m.idesc]||'').trim();
+  }
+  const company={};for(const k in co)company[k]=[...co[k]].join(' / ');
+  return {cur,tot:null,company,desc};
 }
 function xDate(v){
   if(v==null)return null;
@@ -1449,7 +1479,7 @@ function compute(){
     for(const dd of fgAll){if(dd.paDay!=null&&(paFirst==null||dd.paDay<paFirst.day))paFirst={day:dd.paDay,date:dd.paDate,cust:dd.paCust,fg:dd.fg};}
     const paOnly=fgAll.length>0&&fgAll.every(dd=>dd.noForecast)&&fgAll.some(dd=>dd.hasPA); // firm sales orders only — no forecast at all
     // ---- production plan flags for this can ----
-    const ppInfo=ppByCan[code];const onProdPlan=!!ppInfo;
+    const ppInfo=ppByCan[code];
     let ppWeekly=0,ppCoverDays=null,ppFgs=[],ppTotal=0;
     if(ppInfo){
       ppFgs=[...ppInfo.fgs];const pd=ppInfo.ppDay;
@@ -1459,6 +1489,7 @@ function compute(){
       let bal=onHand,cd=0,done=false;for(let dd=0;dd<H&&!done;dd++){const dr=pd[dd]||0;if(dr<=0){cd++;continue;}if(bal-dr<=0){done=true;break;}bal-=dr;cd++;}
       ppCoverDays=done?cd:9999;
     }
+    const onProdPlan=!!ppInfo&&ppTotal>1;   // only "on the plan" if there is real future plan demand (not a stale/zero entry)
     const custMatch=state.cust.size?fgAll.some(dd=>dd.custMatch):true;
     // inventory-band status for every can with demand
     let bandMinCans=null,bandMaxCans=null,bandStatus=null;
@@ -1603,12 +1634,20 @@ function actionOf(x){
 function whyOf(x){
   const T=today();const li=[];const BUF=+$('#setBuf').value||7;
   if(x.layers&&(x.layers.pa>0||x.layers.plan>0||x.layers.fc>0)){
-    const L=x.layers;const parts=[];
-    if(L.pa>0)parts.push(`① <b>PA (firm orders)</b> ${fmt(Math.round(L.pa))}${L.paShort>0?` — <b style="color:var(--red)">short ${fmt(Math.round(L.paShort))}</b>`:' <b style="color:#177245">covered ✓</b>'}`);
-    if(L.plan>0)parts.push(`② <b>Production plan</b> ${fmt(Math.round(L.plan))}${L.planShort>0?` — <b style="color:var(--red)">short ${fmt(Math.round(L.planShort))}</b>`:' <b style="color:#177245">covered ✓</b>'}`);
-    if(L.fc>0)parts.push(`③ <b>Forecast</b> ${fmt(Math.round(L.fc))}${L.fcShort>0?` — <b style="color:#b06d00">short ${fmt(Math.round(L.fcShort))}</b>`:' <b style="color:#177245">covered ✓</b>'}`);
-    const protect=L.paShort>0?'firm PA — the highest priority':(L.planShort>0?'the production plan':(L.fcShort>0?'forecast — the lowest-priority stretch layer':'nothing further — all three are already covered'));
-    li.push(`🎯 <b>Demand priority (cans over 180 days, satisfied in order):</b> ${parts.join(' &nbsp;·&nbsp; ')}. On-hand + open POs are applied <b>PA first, then plan, then forecast</b>${x.suggest>0?` — so the recommended order is protecting <b>${protect}</b>.`:`; ${protect==='nothing further — all three are already covered'?'all three layers are covered, so no order is needed.':'.'}`}`);
+    const L=x.layers;const C=['①','②','③'];let n=0;const parts=[];
+    if(L.pa>0){n++;parts.push(`${C[n-1]} <b>PA (firm orders)</b> ${fmt(Math.round(L.pa))}${L.paShort>1?` — <b style="color:var(--red)">short ${fmt(Math.round(L.paShort))} · firm orders at risk</b>`:' <b style="color:#177245">covered ✓</b>'}`);}
+    if(L.plan>0){n++;parts.push(`${C[n-1]} <b>Production plan</b> ${fmt(Math.round(L.plan))}${L.planShort>1?` — <b style="color:var(--red)">short ${fmt(Math.round(L.planShort))} · production at risk</b>`:' <b style="color:#177245">covered ✓</b>'}`);}
+    if(L.fc>0){n++;parts.push(`${C[n-1]} <b>Forecast</b> ${fmt(Math.round(L.fc))} <span style="color:var(--dim)">(rolling — reordered as you go)</span>`);}
+    let cover;
+    if(x.runout==null){cover=`On-hand${x.incoming?' + open POs':''} cover every layer through the full 180-day horizon — no order needed yet.`;}
+    else{
+      const runoutTxt=dstr(addD(T,x.runout));
+      const orderTxt=x.orderBy!=null?(x.orderBy<=0?'<b style="color:var(--red)">now — lead time is already tight</b>':`<b>by ${dstr(addD(T,x.orderBy))}</b>`):'soon';
+      const hardShort=(L.paShort>1)?'firm PA':((L.planShort>1)?'the production plan':null);
+      const protect=hardShort||'forecast cover';
+      cover=`Supply is applied <b>PA first, then plan, then forecast</b>. ${L.paShort>1?'':'PA'+(L.plan>0?(L.planShort>1?'':' and the plan are'):' is')+' covered first; '}on-hand${x.incoming?' + open POs':''} then run to your <b>${x.bMin}-day Min floor</b> around <b>${runoutTxt}</b>, so you reorder ${orderTxt}${x.suggest?` — the <b>${fmt(x.suggest)}</b>-can order protects <b>${protect}</b>`:''}. ${hardShort?'':'Forecast past that reorders on a rolling basis — you don\'t hold 180 days at once, so the large horizon total is normal.'}`;
+    }
+    li.push(`🎯 <b>Demand priority — what this can's cans are for (180-day totals):</b> ${parts.join(' &nbsp;·&nbsp; ')}. ${cover}`);
   }
   if(x.onProdPlan){
     const cov=x.ppCoverDays>=9999?'beyond the plan horizon':((x.ppCoverDays/7).toFixed(1)+' weeks ('+Math.round(x.ppCoverDays)+' days)');
@@ -1653,7 +1692,7 @@ function whyOf(x){
   if(x.floor)li.push(`<b>DSC floor-stock can</b> — DSC keeps this printed can on their floor, so the short <b>${+$('#setFLT').value||7}-day quick-turn lead time</b> is applied instead of the standard 28 days.`);
   if(x.dscOH!=null||x.dscTot!=null){
     const cur=x.dscOH!=null?fmt(x.dscOH):'0';
-    li.push(`DSC is holding <b>${cur} cans</b> on their floor (Grand Total on hand)${x.quickPull?` — <b>covers the full need, so the ${+$('#setFLT').value||7}-day quick-turn lead is applied</b> instead of ${x.floor?'':'the standard '}${(x.floor?'':'28-day')} lead`:(x.suggest&&(x.dscOH||0)>0?' — covers part of the need; confirm the balance with DSC':'')}.`);
+    li.push(`DSC is holding <b>${cur} cans</b> on their floor (latest DSC on-hand)${x.quickPull?` — <b>covers the full need, so the ${+$('#setFLT').value||7}-day quick-turn lead is applied</b> instead of ${x.floor?'':'the standard '}${(x.floor?'':'28-day')} lead`:(x.suggest&&(x.dscOH||0)>0?' — covers part of the need; confirm the balance with DSC':'')}.`);
   }
   if(x.expLocked)li.push(`🔒 <b>An open PO arrives after this can needs cans, but it's DSC-committed (due on/before the lock date)</b> — it can't be pulled in. Talk to DSC about the lock, or place a bridging order to cover until it lands.`);
   if(x.ns)li.push(`NetStock status: <b>${x.ns}</b>${x.ss?` · safety stock ${fmt(x.ss)} cans`:''}.`);
@@ -2741,7 +2780,7 @@ const SLOTS=[
   ['pa','🚚','Live PA','sales orders & FG stock',true],
   ['po','🧾','Purchase Orders','open supply',false],
   ['count','🔢','Can Inv Count','built-in 8/4 count · drop file to update',false],
-  ['dsc','🏭','DSC Floor Stock','DSC on-hand per can · optional',false],
+  ['dsc','🏭','DSC On-Hand','daily DSC on-hand per can · optional',false],
   ['swapdec','✅','Swap Decisions','DSC yes/no template · re-upload',false],
   ['expdec','⏩','Expedite Decisions','DSC yes/no + new date · re-upload',false],
   ['trans','🔄','Item Transitions','old→new can · optional · redirects demand',false],
@@ -3029,11 +3068,15 @@ async function handleFiles(list){
       else if(t==='trans'){const tr=parseTransitions(wb);if(tr){state.transitions=tr;state.files.trans=f.name;names.push('Item Transitions');}else alert(`Couldn't read old/new can columns in "${f.name}".`);}
       else if(t==='expdec'){const e=parseExpedite(wb);if(e){state.expDec=e;state.files.expdec=f.name;names.push('Expedite Decisions');}else alert(`Couldn't read expedite decisions in "${f.name}".`);}
       else if(t==='dsc'){
+        const dl=parseDSCDaily(wb);
+        if(dl){state.dsc=dl.cur;state.dscTot=dl.tot;state.dscCo=dl.company||{};state.files.dsc=f.name;names.push('DSC On-Hand (daily)');}
+        else{
         const pv=parseDSCPivot(wb);
         if(pv){state.dsc=pv.cur;state.dscTot=pv.tot;state.files.dsc=f.name;
           if(pv.floor&&pv.floor.size){state.floor=new Set(pv.floor);const el=$('#floorList');if(el)el.value=[...pv.floor].join(',');const fc=$('#floorCount');if(fc)fc.textContent=state.floor.size+' cans on quick-turn';}
           names.push('DSC Floor Stock');}
         else{const p=parseDSC(wb);if(p){state.dsc=p;state.dscTot=null;state.files.dsc=f.name;names.push('DSC Floor Stock');}else alert(`Couldn't find item-code + quantity columns in "${f.name}".`);}
+        }
       }
       else alert(`Couldn't recognize "${f.name}". Expected: Stock on Hand, Live PA, Purchase Orders, Can Inv, DSC Floor Stock, Forecast, or BOM.`);
         wb=null; // release workbook memory before the next file
@@ -3627,7 +3670,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v16 · priority-PA-plan-fc · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v18 · coverage-framing-fix · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
