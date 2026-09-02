@@ -1495,8 +1495,12 @@ function compute(){
     let bandMinCans=null,bandMaxCans=null,bandStatus=null;
     if(daily>0){bandMinCans=bMin*daily;bandMaxCans=bMax*daily;bandStatus=onHand<bandMinCans?'below':(onHand>bandMaxCans?'over':'in');}
     // priority coverage: allocate current supply (on-hand + open POs) to PA → plan → forecast, in that order
-    let psup=onHand+incoming;const paCov=Math.min(psup,paTot);psup-=paCov;const planCov=Math.min(psup,planTot);psup-=planCov;const fcCov=Math.min(psup,fcTot);
-    const layers={pa:paTot,plan:planTot,fc:fcTot,paShort:Math.max(0,paTot-paCov),planShort:Math.max(0,planTot-planCov),fcShort:Math.max(0,fcTot-fcCov)};
+    // Each layer is checked INDEPENDENTLY against the same supply (on-hand + open POs) — PA, plan and forecast are
+    // NOT stacked. The production-plan build is what produces the finished goods that fill the firm PA, so the same
+    // cans are counted once, not once per layer. Coverage = does supply cover each layer on its own.
+    const psup=onHand+incoming;
+    const layers={pa:paTot,plan:planTot,fc:fcTot,supply:psup,
+      paShort:Math.max(0,paTot-psup),planShort:Math.max(0,planTot-psup),fcShort:Math.max(0,fcTot-psup)};
     out.push({code,desc:st.desc,supplier:st.supplier,ns:st.ns,ss:st.ss,onHand,counted,cnt,sysOnHand:st.onHand,
       oz:sz.oz,size:sz.size,pallet:sz.pallet,
       adjusted:!!(cnt&&cnt.adjusted&&cnt.counted),cntEntry:cnt,
@@ -1639,13 +1643,16 @@ function whyOf(x){
     if(L.plan>0){n++;parts.push(`${C[n-1]} <b>Production plan</b> ${fmt(Math.round(L.plan))}${L.planShort>1?` — <b style="color:var(--red)">short ${fmt(Math.round(L.planShort))} · production at risk</b>`:' <b style="color:#177245">covered ✓</b>'}`);}
     if(L.fc>0){n++;parts.push(`${C[n-1]} <b>Forecast</b> ${fmt(Math.round(L.fc))} <span style="color:var(--dim)">(rolling — reordered as you go)</span>`);}
     let cover;
-    if(x.runout==null){cover=`On-hand${x.incoming?' + open POs':''} cover every layer through the full 180-day horizon — no order needed yet.`;}
+    const sup=L.supply!=null?L.supply:(x.onHand+(x.incoming||0));
+    const both=L.pa>0&&L.plan>0;
+    const indep=`Each layer is checked <b>on its own</b> against your <b>${fmt(Math.round(sup))}</b> on-hand${x.incoming?' + open POs':''} — <b>not added together</b>${both?', because the production-plan build produces the finished goods that fill the firm PA (the same cans, counted once)':''}.`;
+    if(x.runout==null){cover=`${indep} On-hand covers each layer through the full 180-day horizon — no order needed yet.`;}
     else{
       const runoutTxt=dstr(addD(T,x.runout));
       const orderTxt=x.orderBy!=null?(x.orderBy<=0?'<b style="color:var(--red)">now — lead time is already tight</b>':`<b>by ${dstr(addD(T,x.orderBy))}</b>`):'soon';
       const hardShort=(L.paShort>1)?'firm PA':((L.planShort>1)?'the production plan':null);
       const protect=hardShort||'forecast cover';
-      cover=`Supply is applied <b>PA first, then plan, then forecast</b>. ${L.paShort>1?'':'PA'+(L.plan>0?(L.planShort>1?'':' and the plan are'):' is')+' covered first; '}on-hand${x.incoming?' + open POs':''} then run to your <b>${x.bMin}-day Min floor</b> around <b>${runoutTxt}</b>, so you reorder ${orderTxt}${x.suggest?` — the <b>${fmt(x.suggest)}</b>-can order protects <b>${protect}</b>`:''}. ${hardShort?'':'Forecast past that reorders on a rolling basis — you don\'t hold 180 days at once, so the large horizon total is normal.'}`;
+      cover=`${indep} On-hand then runs to your <b>${x.bMin}-day Min floor</b> around <b>${runoutTxt}</b> at the forecast pace, so you reorder ${orderTxt}${x.suggest?` — the <b>${fmt(x.suggest)}</b>-can order protects <b>${protect}</b>`:''}. ${hardShort?'':'Forecast past that reorders on a rolling basis — you don\'t hold 180 days at once, so the large horizon total is normal.'}`;
     }
     li.push(`🎯 <b>Demand priority — what this can's cans are for (180-day totals):</b> ${parts.join(' &nbsp;·&nbsp; ')}. ${cover}`);
   }
@@ -3670,7 +3677,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v18 · coverage-framing-fix · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v19 · coverage-independent · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
