@@ -790,7 +790,8 @@ function detect(wb){
   if(names.some(n=>n.includes('pending cans')))return 'count';
   for(const sn of wb.SheetNames){const rr=rws(wb.Sheets[sn]);if(!rr)continue;
     for(let k=0;k<Math.min(rr.length,8);k++){const hrow=(rr[k]||[]).map(x=>String(x||'').trim().toLowerCase());
-      if(hrow.some(x=>x==='item code')&&hrow.some(x=>x==='total'||x.includes('physical count')))return 'count';}}
+      if(hrow.some(x=>x==='item code')&&hrow.some(x=>x==='total'||x.includes('physical count')))return 'count';
+      if(hrow.some(x=>x==='c'||x==='code')&&hrow.some(x=>x.includes('physical count'))&&hrow.some(x=>x.includes('adjust')))return 'count';}}
   for(const sn of wb.SheetNames){
     const r0=rws(wb.Sheets[sn]);
     const h=(r0[0]||[]).map(x=>String(x||'').trim().toLowerCase());
@@ -3677,7 +3678,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v20 · count-8-10 · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v21 · count-upload-fix · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
