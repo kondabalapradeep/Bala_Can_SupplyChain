@@ -534,6 +534,23 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 
+
+.capnote{background:#f5f9ff;border:1px solid #dbe7f6;border-radius:10px;padding:12px 16px;margin:10px 0;font-size:13px;color:var(--ink)}
+.capnote b{color:var(--ink)}
+.caplist{margin:8px 0 0;padding-left:18px}
+.caplist li{margin:5px 0;line-height:1.5}
+.capsec{font-weight:600;color:var(--ink);margin:16px 0 6px;font-size:13px}
+.captb td,.captb th{white-space:nowrap}
+.caplbl{font-size:12px;color:var(--dim);margin-left:14px;display:inline-flex;align-items:center;gap:6px}
+.caplbl input{width:120px;padding:4px 6px;border:1px solid #cdd9e6;border-radius:6px;font-variant-numeric:tabular-nums}
+.rtag{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;letter-spacing:.03em}
+.rtag.low{background:#e6f4ea;color:#177245}
+.rtag.high{background:#fdeaea;color:#b3261e}
+.rtag.idle{background:#eef1f4;color:#5b6b7b}
+
+.capye{background:#eef6ff;border:1px solid #cfe0f5;border-radius:10px;padding:10px 16px;margin:8px 0;font-size:15px;font-weight:600;color:var(--ink)}
+.capye b{font-size:18px}
+.capyesub{display:block;font-size:11px;font-weight:400;color:var(--dim);margin-top:2px}
 </style>
 </head>
 <body>
@@ -551,6 +568,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
     <button class="ptab" id="tabCover">🛡️ Coverage Runway</button>
     <button class="ptab" id="tabTrack">📸 Daily Tracker</button>
     <button class="ptab" id="tabProd">🏭 Production Plan</button>
+    <button class="ptab" id="tabCap">⚖️ Capacity Plan</button>
   </nav>
   <div class="sb-lbl">Export</div>
   <div class="sb-actions">
@@ -630,6 +648,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
   <div id="coverage" style="display:none"></div>
   <div id="tracker" style="display:none"></div>
   <div id="prodplan" style="display:none"></div>
+  <div id="capacity" style="display:none"></div>
   <div class="empty" id="empty"><b>Waiting for data</b>Upload Stock on Hand and Live PA to light up the board.</div>
 </div>
 </main>
@@ -1497,11 +1516,14 @@ function compute(){
     if(daily>0){bandMinCans=bMin*daily;bandMaxCans=bMax*daily;bandStatus=onHand<bandMinCans?'below':(onHand>bandMaxCans?'over':'in');}
     // priority coverage: allocate current supply (on-hand + open POs) to PA → plan → forecast, in that order
     // Each layer is checked INDEPENDENTLY against the same supply (on-hand + open POs) — PA, plan and forecast are
-    // NOT stacked. The production-plan build is what produces the finished goods that fill the firm PA, so the same
-    // cans are counted once, not once per layer. Coverage = does supply cover each layer on its own.
-    const psup=onHand+incoming;
-    const layers={pa:paTot,plan:planTot,fc:fcTot,supply:psup,
-      paShort:Math.max(0,paTot-psup),planShort:Math.max(0,planTot-psup),fcShort:Math.max(0,fcTot-psup)};
+    // Each layer is checked on its own (NOT stacked with the others — the plan build produces the FG that fills the PA),
+    // but TIME-PHASED: supply only counts once it has actually arrived. A layer is short if, at any point before its
+    // demand is met, cumulative on-hand + PO arrivals so far falls below cumulative demand — so a PO that lands AFTER
+    // the demand's date does not cover it.
+    const tpShort=(dem)=>{let cumD=0,cumS=onHand,worst=0,day=-1;for(let i=0;i<H;i++){cumS+=arrivals[i]||0;cumD+=dem[i]||0;const s=cumD-cumS;if(s>0.5&&day<0)day=i;if(s>worst)worst=s;}return {short:Math.max(0,Math.round(worst)),day};};
+    const paS=tpShort(paA),planS=tpShort(planA),fcS=tpShort(fcA);
+    const layers={pa:paTot,plan:planTot,fc:fcTot,supply:onHand+incoming,
+      paShort:paS.short,paShortDay:paS.day,planShort:planS.short,planShortDay:planS.day,fcShort:fcS.short,fcShortDay:fcS.day};
     out.push({code,desc:st.desc,supplier:st.supplier,ns:st.ns,ss:st.ss,onHand,counted,cnt,sysOnHand:st.onHand,
       oz:sz.oz,size:sz.size,pallet:sz.pallet,
       adjusted:!!(cnt&&cnt.adjusted&&cnt.counted),cntEntry:cnt,
@@ -1644,16 +1666,22 @@ function whyOf(x){
     if(L.plan>0){n++;parts.push(`${C[n-1]} <b>Production plan</b> ${fmt(Math.round(L.plan))}${L.planShort>1?` — <b style="color:var(--red)">short ${fmt(Math.round(L.planShort))} · production at risk</b>`:' <b style="color:#177245">covered ✓</b>'}`);}
     if(L.fc>0){n++;parts.push(`${C[n-1]} <b>Forecast</b> ${fmt(Math.round(L.fc))} <span style="color:var(--dim)">(rolling — reordered as you go)</span>`);}
     let cover;
-    const sup=L.supply!=null?L.supply:(x.onHand+(x.incoming||0));
     const both=L.pa>0&&L.plan>0;
-    const indep=`Each layer is checked <b>on its own</b> against your <b>${fmt(Math.round(sup))}</b> on-hand${x.incoming?' + open POs':''} — <b>not added together</b>${both?', because the production-plan build produces the finished goods that fill the firm PA (the same cans, counted once)':''}.`;
-    if(x.runout==null){cover=`${indep} On-hand covers each layer through the full 180-day horizon — no order needed yet.`;}
-    else{
+    const indep=`Each layer is checked <b>on its own</b> — <b>not stacked</b>${both?' (the production-plan build produces the finished goods that fill the firm PA, so the same cans are counted once)':''} — against on-hand plus only the <b>POs that have arrived by the time that layer is needed</b>.`;
+    const paLate=L.paShort>1, planLate=L.planShort>1;
+    if(paLate||planLate){
+      const which=paLate?'firm PA':'the production plan';
+      const shortN=paLate?L.paShort:L.planShort;
+      const gapDay=paLate?L.paShortDay:L.planShortDay;
+      const gapTxt=(gapDay!=null&&gapDay>=0)?dstr(addD(T,gapDay)):'its due date';
+      const firstArr=(x.firstArr!=null)?dstr(addD(T,x.firstArr)):null;
+      cover=`${indep} <b style="color:var(--red)">${which.charAt(0).toUpperCase()+which.slice(1)} is NOT covered in time</b>: cans are needed around <b>${gapTxt}</b>, but on-hand (<b>${fmt(x.onHand)}</b>) plus POs landing by then fall short by <b>${fmt(shortN)}</b>${firstArr?` — your open POs don't arrive until <b>${firstArr}</b>, after they're needed`:''}. ${x.expedite?`Expediting the incoming PO to arrive by ${gapTxt} closes the gap`:(x.suggest?`Pulling the PO in (or a new order) is needed to cover it`:'A pull-in or new order is needed')}.`;
+    } else if(x.runout==null){
+      cover=`${indep} On-hand plus timely POs cover every layer through the 180-day horizon — no order needed yet.`;
+    } else {
       const runoutTxt=dstr(addD(T,x.runout));
-      const orderTxt=x.orderBy!=null?(x.orderBy<=0?'<b style="color:var(--red)">now — lead time is already tight</b>':`<b>by ${dstr(addD(T,x.orderBy))}</b>`):'soon';
-      const hardShort=(L.paShort>1)?'firm PA':((L.planShort>1)?'the production plan':null);
-      const protect=hardShort||'forecast cover';
-      cover=`${indep} On-hand then runs to your <b>${x.bMin}-day Min floor</b> around <b>${runoutTxt}</b> at the forecast pace, so you reorder ${orderTxt}${x.suggest?` — the <b>${fmt(x.suggest)}</b>-can order protects <b>${protect}</b>`:''}. ${hardShort?'':'Forecast past that reorders on a rolling basis — you don\'t hold 180 days at once, so the large horizon total is normal.'}`;
+      const orderTxt=(x.orderBy!=null)?(x.orderBy<=0?'<b style="color:var(--red)">now — lead time is already tight</b>':`<b>by ${dstr(addD(T,x.orderBy))}</b>`):'soon';
+      cover=`${indep} PA and the plan are covered in time; on-hand then runs to your <b>${x.bMin}-day Min floor</b> around <b>${runoutTxt}</b> at the forecast pace, so you reorder ${orderTxt}${x.suggest?` — the <b>${fmt(x.suggest)}</b>-can order protects <b>forecast cover</b>`:''}. Forecast past that reorders on a rolling basis, so the large horizon total is normal.`;
     }
     li.push(`🎯 <b>Demand priority — what this can's cans are for (180-day totals):</b> ${parts.join(' &nbsp;·&nbsp; ')}. ${cover}`);
   }
@@ -1766,8 +1794,8 @@ function sec(id,icon,title,color,count,unit,summary,body,alarm){
 function plannerData(){
   const T=today();
   const q=state.q.toLowerCase();
-  const rows=state.rows.filter(x=>x.active&&x.totDem>1&&matchRow(x,q)&&(!state.cust.size||x.custMatch))
-    .sort((a,b)=>b.totDem-a.totDem);
+  const rows=state.rows.filter(x=>/^12/.test(x.code)&&matchRow(x,q)&&(!state.cust.size||x.custMatch))
+    .sort((a,b)=>(b.totDem-a.totDem)||((b.onHand||0)-(a.onHand||0)));   // ALL NetStock 12xxx cans; demand cans first, then idle stock
   const bks=planBuckets(state.planMode,T);
   const data=rows.map(x=>{
     let bal=x.onHand,totNeed=0,totArr=0;
@@ -1897,6 +1925,197 @@ function exportPlanner(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,state.planMode==='wk'?'By week':'By period');
   XLSX.writeFile(wb,'Can_Consumption_Planner_'+(state.planMode==='wk'?'weekly_':'period_')+new Date().toISOString().slice(0,10)+'.xlsx');
   toast('Planner exported \u2014 ranked, with horizon totals');
+}
+
+
+/* ---------- capacity-leveled weekly build plan ---------- */
+// Levels total weekly can-production load against the plant's mission capacity (cans/week). Weeks over capacity
+// have their EXCESS pre-built in earlier weeks that still have slack — moving only LOW-RISK items (steady, recurring
+// demand). Nearest earlier week is filled first, so nothing is built earlier than it needs to be.
+function capacityData(){
+  const T=today();
+  const q=(state.q||'').toLowerCase();
+  const rows=state.rows.filter(x=>/^12/.test(x.code)&&matchRow(x,q)&&(!state.cust.size||x.custMatch));
+  const bks=planBuckets('wk',T);          // capacity is weekly -> always weekly buckets
+  const W=bks.length;
+  const CAPWK=state.capWk||7200000;
+  const COV_MIN=0.6, CV_MAX=0.8;          // low-risk thresholds (surfaced in the header)
+  const caps=bks.map(()=>CAPWK);   // FULL weekly capacity for every week (7.2M is a weekly limit, not divided per day)
+  let cans=rows.map(x=>{
+    const need=bks.map(b=>{let n=0;for(let i=b.so;i<=b.eo;i++)n+=x.demArr[i]||0;return n;});
+    const tot=need.reduce((a,c)=>a+c,0);
+    const active=need.filter(n=>n>0.5).length;
+    const coverage=W?active/W:0;
+    const mean=W?tot/W:0;
+    const varc=W?need.reduce((a,n)=>a+(n-mean)*(n-mean),0)/W:0;
+    const cv=mean>0?Math.sqrt(varc)/mean:99;
+    const hasPA=!!(x.layers&&x.layers.pa>0);
+    const lowRisk=coverage>=COV_MIN&&cv<=CV_MAX&&tot>0;
+    const poWk=bks.map(b=>{let a=0;for(let i=b.so;i<=b.eo;i++)a+=x.arrArr[i]||0;return a;});   // PO arrivals per week (same open POs as the board/planner)
+    return {x,need,tot,coverage,cv,hasPA,lowRisk,onHand:x.onHand||0,poWk,poTot:poWk.reduce((a,b)=>a+b,0)};
+  }).sort((a,b)=>(b.tot-a.tot)||((b.x.onHand||0)-(a.x.onHand||0)));   // demand cans first, then idle stock by on-hand
+  // leveled matrix (per can per week), start = raw demand
+  const L=cans.map(c=>c.need.slice());
+  const weekTot=bks.map((_,w)=>cans.reduce((a,c,ci)=>a+L[ci][w],0));
+  const pulledIn=new Array(W).fill(0),pulledOut=new Array(W).fill(0),residual=new Array(W).fill(0);
+  for(let w=0;w<W;w++){
+    let excess=weekTot[w]-caps[w];
+    if(excess<=0.5)continue;
+    for(let e=w-1;e>=0&&excess>0.5;e--){
+      const room=caps[e]-weekTot[e];
+      if(room<=0.5)continue;
+      let lrAvail=0;for(let ci=0;ci<cans.length;ci++)if(cans[ci].lowRisk)lrAvail+=L[ci][w];
+      if(lrAvail<=0.5)break;                       // only low-risk items may be pre-built; none left to move
+      const move=Math.min(excess,room,lrAvail);
+      if(move<=0.5)continue;
+      const factor=move/lrAvail;
+      for(let ci=0;ci<cans.length;ci++){if(!cans[ci].lowRisk)continue;const amt=L[ci][w]*factor;if(amt<=0)continue;L[ci][w]-=amt;L[ci][e]+=amt;}
+      weekTot[w]-=move;weekTot[e]+=move;excess-=move;pulledOut[w]+=move;pulledIn[e]+=move;
+    }
+    residual[w]=Math.max(0,excess);                // couldn't be absorbed by earlier low-risk slack
+  }
+  const weekOrig=bks.map((_,w)=>cans.reduce((a,c)=>a+c.need[w],0));
+  // FULL physical can inventory = every can on file (incl. stock on cans with no near-term demand). This is the
+  // accurate total on-hand; the demand-can subset (shownOH) is what the Consumption Planner sums.
+  const shownOH=cans.reduce((a,c)=>a+c.onHand,0);
+  const allRows=state.rows||[];
+  const allOnHand=allRows.reduce((a,r)=>a+(r.onHand||0),0);
+  const demandOH=cans.reduce((a,c)=>a+(c.tot>0?(c.onHand||0):0),0);
+  const otherOH=allOnHand-demandOH;   // on-hand sitting on idle (no near-term demand) cans
+  const allPoIn=bks.map(b=>{let sm=0;for(const r of allRows){const ar=r.arrArr;if(!ar)continue;for(let i=Math.max(0,b.so);i<=b.eo;i++)sm+=ar[i]||0;}return sm;});
+  const poInShown=bks.map((_,w)=>cans.reduce((a,c)=>a+c.poWk[w],0));
+  // inventory roll-forward on the FULL inventory: start (all cans) + all PO arrivals - leveled build (consumption)
+  const endInv=[];let inv=allOnHand;for(let w=0;w<bks.length;w++){inv=inv+allPoIn[w]-weekTot[w];endInv.push(inv);}
+  const yearEnd=endInv.length?endInv[endInv.length-1]:allOnHand;
+  cans.forEach((c,ci)=>{c.levTot=L[ci].reduce((a,b)=>a+b,0);c.endInv=c.onHand+c.poTot-c.levTot;});
+  return {T,bks,caps,CAPWK,COV_MIN,CV_MAX,cans,L,weekOrig,weekLev:weekTot,pulledIn,pulledOut,residual,startOH:allOnHand,allOnHand,shownOH:demandOH,otherOH,poIn:allPoIn,poInShown,endInv,yearEnd};
+}
+function capTotalRow(bks,cans,L,poInShown){
+  const r=n=>Math.round(n), f=n=>fmt(Math.round(n));
+  const gOH=cans.reduce((a,c)=>a+c.onHand,0), gBuild=cans.reduce((a,c)=>a+c.levTot,0), gEnd=cans.reduce((a,c)=>a+c.endInv,0), gPO=cans.reduce((a,c)=>a+c.poTot,0);
+  const cells=bks.map((b,w)=>{const bld=cans.reduce((a,c,ci)=>a+L[ci][w],0);const po=poInShown[w]||0;
+    return `<td class="${b.cur?'cur':''}"><span class="need"><b>${f(bld)}</b></span>${po>0.5?`<span class="sub po">+${f(po)} PO</span>`:''}</td>`;}).join('');
+  return `<tr class="tot"><td class="stick c1"></td><td class="stick c2">TOTAL \u2014 all cans on file \u00b7 per week: build \u00b7 +PO</td><td class="stick c3"></td>`+
+    `<td class="stick c4"><b>${f(gOH)}</b>${gPO>0.5?`<span class="bsub">+${f(gPO)} PO</span>`:''}</td>${cells}`+
+    `<td class="ctot"><span class="need">${f(gBuild)}</span><span class="sub ${gEnd<0?'neg':''}">end ${gEnd<0?'\u2212':''}${f(Math.abs(gEnd))}</span></td></tr>`;
+}
+function renderCapacity(){
+  const el=$('#capacity');
+  if(!state.rows.length){el.innerHTML='';return;}
+  const D=capacityData();const {bks,caps,CAPWK,COV_MIN,CV_MAX,cans,L,weekOrig,weekLev,pulledIn,pulledOut,residual,startOH,allOnHand,shownOH,otherOH,poIn,poInShown,endInv,yearEnd}=D;
+  const now=fiscalNow(D.T);
+  const nowTxt=now?`Today <b>${dlong(D.T)}</b> \u00b7 fiscal <b>P${now.per.p}</b>${now.wk?` \u00b7 <b>Week ${now.wk.wk}</b>`:''}`:'';
+  const capM=(CAPWK/1e6);
+  const nLow=cans.filter(c=>c.lowRisk).length, nHigh=cans.length-nLow;
+  const overWeeks=residual.filter(r=>r>0.5).length;
+  const totalPulled=Math.round(pulledIn.reduce((a,b)=>a+b,0));
+  const negWk=endInv.findIndex(v=>v<0);
+  if(!bks.length){el.innerHTML=`<div class="planbar"><span class="now">${nowTxt}</span></div><div class="emptyrow">No weekly buckets in range.</div>`;return;}
+  const lastB=bks[bks.length-1];
+  const bullets=`<div class="capnote"><b>How this plan is built \u2014 and what it tells you</b>
+    <ul class="caplist">
+      <li><b>Weekly load</b> = the same live production demand the Consumption Planner uses (forecast \u00d7 BOM cans-per-case + firm PA timing), summed across <b>all cans per week</b>.</li>
+      <li><b>Mission capacity</b> = <b>${fmt(CAPWK)} cans/week</b> (${capM.toFixed(1)}M) \u2014 the plant runs at or below this, never above. This is a <b>weekly</b> limit applied in full to every week (not divided per day).</li>
+      <li><b>Over-capacity weeks</b> pre-build their excess in the <b>nearest earlier weeks with slack</b>, moving <b>only low-risk items</b> (steady demand: present in \u2265${Math.round(COV_MIN*100)}% of weeks and CV \u2264 ${CV_MAX}). <b>${nLow}</b> low-risk \u00b7 <b>${nHigh}</b> high-risk. Spiky items stay put.</li>
+      <li><b>Inventory roll-forward</b> uses the <b>same on-hand and the same open POs as the Board and Consumption Planner</b>: starting on-hand + PO arrivals \u2212 the leveled build = <b>ending inventory</b> each week, ending at the <b>year-end position</b>.</li>
+      <li>${overWeeks?`<b style="color:var(--red)">\u26a0 ${overWeeks} week(s) still over capacity</b> after leveling low-risk items.`:`<b style="color:#177245">All weeks fit within capacity.</b>`} ${negWk>=0?`<b style="color:var(--red)">Inventory goes negative from ${bks[negWk].label}</b> \u2014 on-hand + POs don't support the build then (needs cans pulled in earlier).`:`<b style="color:#177245">Inventory stays positive across the horizon.</b>`}</li>
+    </ul></div>`;
+  const yeCls=yearEnd<0?'color:var(--red)':'color:#177245';
+  const totPO=Math.round(poIn.reduce((a,b)=>a+b,0)), totBuild=Math.round(weekLev.reduce((a,b)=>a+b,0));
+  const headline=`<div class="capye">
+    <div>Total physical can inventory on hand today: <b>${fmt(Math.round(allOnHand))} cans</b><span class="capyesub">demand cans ${fmt(Math.round(shownOH))} + cans with stock but no near-term demand ${fmt(Math.round(otherOH))} = ${fmt(Math.round(allOnHand))} (all cans on file). The Consumption Planner shows only the demand-can subset.</span></div>
+    <div style="margin-top:6px">Projected inventory at end of horizon (\u2248 ${dstr(lastB.ed)}): <b style="${yeCls}">${yearEnd<0?'\u2212':''}${fmt(Math.abs(Math.round(yearEnd)))} cans</b><span class="capyesub">start ${fmt(Math.round(allOnHand))} + PO arrivals ${fmt(totPO)} \u2212 total build ${fmt(totBuild)}</span></div>
+  </div>`;
+  // ---- weekly summary ----
+  const sHead=`<tr><th class="stick c1">Week \u2192</th>${bks.map(b=>`<th class="${b.cur?'cur':''}">${b.label}${b.cur?' \u00b7 NOW':''}<span class="bsub">${b.sub}${b.partial?' (part.)':''}</span></th>`).join('')}</tr>`;
+  const rowLine=(lbl,vals)=>`<tr><td class="stick c1">${lbl}</td>${vals.map(v=>`<td>${v}</td>`).join('')}</tr>`;
+  const summary=`<table class="plantb captb"><thead>${sHead}</thead><tbody>
+    ${rowLine('Demand (raw)',weekOrig.map(v=>`<span class="need">${fmt(Math.round(v))}</span>`))}
+    ${rowLine('Capacity',caps.map(v=>`<span class="sub">${fmt(Math.round(v))}</span>`))}
+    ${rowLine('\u2193 pre-built out',pulledOut.map(v=>v>0.5?`<span class="sub over">\u2193 ${fmt(Math.round(v))}</span>`:'\u00b7'))}
+    ${rowLine('\u2191 built early (in)',pulledIn.map(v=>v>0.5?`<span class="sub po">\u2191 ${fmt(Math.round(v))}</span>`:'\u00b7'))}
+    ${rowLine('Leveled build',weekLev.map(v=>`<span class="need"><b>${fmt(Math.round(v))}</b></span>`))}
+    ${rowLine('Utilization',bks.map((b,w)=>{const u=caps[w]?weekLev[w]/caps[w]:0;return `<span class="need ${residual[w]>0.5?'neg':''}">${(u*100).toFixed(0)}%</span>`;}))}
+    ${rowLine('Over capacity',residual.map(v=>v>0.5?`<span class="need neg">\u26a0 ${fmt(Math.round(v))}</span>`:'<span style="color:#177245">\u2713</span>'))}
+    ${rowLine('Opening inventory',endInv.map((v,w)=>{const o=w===0?allOnHand:endInv[w-1];return `<span class="need ${o<0?'neg':''}">${o<0?'\u2212':''}${fmt(Math.abs(Math.round(o)))}</span>`;}))}
+    ${rowLine('+ PO arrivals',poIn.map(v=>v>0.5?`<span class="sub po">+${fmt(Math.round(v))}</span>`:'\u00b7'))}
+    ${rowLine('\u2212 build (consumed)',weekLev.map(v=>`<span class="sub over">\u2212${fmt(Math.round(v))}</span>`))}
+    ${rowLine('Ending inventory',endInv.map(v=>`<span class="need ${v<0?'neg':''}"><b>${v<0?'\u2212':''}${fmt(Math.abs(Math.round(v)))}</b></span>`))}
+  </tbody></table>`;
+  // ---- per-can leveled grid + on-hand + year-end inventory ----
+  const head=`<tr>
+    <th class="stick c1">Can #</th><th class="stick c2">Description</th><th class="stick c3">FG \u2192 goes into</th><th class="stick c4">On hand \u00b7 Risk</th>
+    ${bks.map(b=>`<th class="${b.cur?'cur':''}">${b.label}${b.cur?' \u00b7 NOW':''}<span class="bsub">${b.sub}${b.partial?' (part.)':''}</span></th>`).join('')}
+    <th class="ctot">\u03a3 build \u00b7 end inv</th>
+  </tr>`;
+  const body=cans.map((c,ci)=>{
+    const risk=c.tot<=0?'<span class="rtag idle">IDLE</span>':(c.lowRisk?'<span class="rtag low">LOW</span>':'<span class="rtag high">HIGH</span>');
+    const cells=bks.map((b,w)=>{
+      const lv=L[ci][w], delta=lv-c.need[w], po=c.poWk[w]||0;
+      const poSub=po>0.5?`<span class="sub po">+${fmt(Math.round(po))} PO</span>`:'';
+      let sub='';
+      if(delta>0.5)sub=`<span class="sub over">\u2191 pre-build +${fmt(Math.round(delta))}</span>`;
+      else if(delta<-0.5)sub=`<span class="sub over">\u2193 shifted \u2212${fmt(Math.round(-delta))}</span>`;
+      return `<td class="${b.cur?'cur':''}"><span class="need ${(lv<1&&po<1)?'z':''}">${lv<1?'\u00b7':fmt(Math.round(lv))}</span>${poSub}${sub}</td>`;
+    }).join('');
+    return `<tr>
+      <td class="stick c1 mono canlink" data-can="${c.x.code}">${c.x.code}</td>
+      <td class="stick c2" title="${(c.x.desc||'').replace(/"/g,'&quot;')}"><span class="rk">#${ci+1}</span>${(c.x.desc||'').replace(/^PK-A-?\s?CAN[- ]?/i,'')}</td>
+      <td class="stick c3" title="${(c.x.fgFull||'').replace(/"/g,'&quot;')}">${c.x.fgTop||'\u2014'}</td>
+      <td class="stick c4"><b>${fmt(Math.round(c.onHand))}</b> ${risk}<span class="bsub">cov ${(c.coverage*100).toFixed(0)}% \u00b7 cv ${c.cv>=99?'\u2013':c.cv.toFixed(2)}${c.poTot>0?' \u00b7 +'+fmt(Math.round(c.poTot))+' PO':''}</span></td>
+      ${cells}
+      <td class="ctot"><span class="need">${fmt(Math.round(c.levTot))}</span><span class="sub ${c.endInv<0?'neg':''}">end ${c.endInv<0?'\u2212':''}${fmt(Math.abs(Math.round(c.endInv)))}</span></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML=`
+  <div class="planbar">
+    <span class="now">${nowTxt} \u2014 capacity-leveled weekly build + year-end inventory</span>
+    <label class="caplbl">Mission capacity (cans/wk) <input id="capInput" type="number" step="100000" value="${CAPWK}"></label>
+    <button class="btn ghost" id="capExp" style="margin-left:auto">\u2b07 Export plan</button>
+  </div>
+  ${headline}
+  ${bullets}
+  <div class="capsec">\u2696\ufe0f Weekly capacity, load &amp; inventory ${totalPulled>0?`\u2014 <b>${fmt(totalPulled)}</b> cans pre-built forward to fit capacity`:'\u2014 no leveling needed'}</div>
+  <div class="planwrap">${summary}</div>
+  <div class="capsec">Per-can leveled build &amp; year-end inventory \u2014 on-hand &amp; POs match the Board / Consumption Planner</div>
+  <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}${capTotalRow(bks,cans,L,poInShown)}</tbody></table></div>`;
+  const ci=$('#capInput');if(ci)ci.onchange=()=>{const v=+ci.value;if(v>0){state.capWk=v;renderCapacity();}};
+  const ce=$('#capExp');if(ce)ce.onclick=exportCapacity;
+  el.querySelectorAll('.canlink').forEach(a=>a.onclick=()=>{const c=a.dataset.can;if(c&&state.rows.find(r=>r.code===c))openModal(c);});
+}
+function exportCapacity(){
+  const D=capacityData();const {bks,caps,cans,L,weekOrig,weekLev,pulledIn,pulledOut,residual,CAPWK,startOH,poIn,endInv,yearEnd}=D;
+  if(!cans.length){toast('No data to export');return;}
+  const aoa=[],merges=[];
+  const h1=['Rank','Can #','Description','FG \u2192 goes into','Risk',''].concat(bks.map(b=>b.label+(b.cur?' \u00b7 NOW':''))).concat(['\u03a3 Horizon']);
+  const h2=['','','','','','Line'].concat(bks.map(b=>b.sub+(b.partial?' (part.)':''))).concat(['leveled build']);
+  aoa.push(h1,h2);for(let c=0;c<6;c++)merges.push({s:{r:0,c},e:{r:1,c}});
+  let r=2;
+  const block=(rank,id,desc,fg,risk,orig,lev)=>{
+    const delta=lev.map((v,i)=>v-orig[i]);
+    aoa.push([rank,id,desc,fg,risk,'Original demand',...orig.map(v=>Math.round(v)),Math.round(orig.reduce((a,b)=>a+b,0))]);
+    aoa.push(['','','','','','Pre-build (+early / \u2212shifted)',...delta.map(v=>Math.round(v)),'']);
+    aoa.push(['','','','','','Leveled build',...lev.map(v=>Math.round(v)),Math.round(lev.reduce((a,b)=>a+b,0))]);
+    for(let c=0;c<5;c++)merges.push({s:{r,c},e:{r:r+2,c}});r+=3;
+  };
+  // capacity summary block first
+  block('','CAPACITY','Mission capacity (cans/week)','','',caps,caps);
+  block('','WEEKLY LOAD','Demand raw \u2192 leveled build','','',weekOrig,weekLev);
+  aoa.push(['','RESIDUAL','Still over capacity after leveling','','','Over',...residual.map(v=>Math.round(v)),'']);r++;
+  aoa.push(['','PO ARRIVALS','Incoming cans (open POs)','','','PO in',...poIn.map(v=>Math.round(v)),Math.round(poIn.reduce((a,b)=>a+b,0))]);r++;
+  aoa.push(['','ENDING INV','Start '+Math.round(startOH)+' + PO \u2212 build','','','End inv',...endInv.map(v=>Math.round(v)),Math.round(yearEnd)]);r++;
+  aoa.push([]);r++;
+  cans.forEach((c,i)=>block(i+1,c.x.code,c.x.desc,c.x.fgTop||'\u2014',c.lowRisk?'LOW':'HIGH',c.need,L[i]));
+  const tNeed=bks.map((_,w)=>cans.reduce((a,c)=>a+c.need[w],0)),tLev=bks.map((_,w)=>cans.reduce((a,c,ci)=>a+L[ci][w],0));
+  block('','TOTAL \u2014 cans shown','Demand raw \u2192 leveled build','','',tNeed,tLev);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!merges']=merges;
+  ws['!cols']=[{wch:6},{wch:9},{wch:34},{wch:16},{wch:6},{wch:20}].concat(bks.map(()=>({wch:13}))).concat([{wch:14}]);
+  ws['!freeze']={xSplit:6,ySplit:2};
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let R=2;R<=range.e.r;R++)for(let C=0;C<=range.e.c;C++){if(C===5)continue;const cell=ws[XLSX.utils.encode_cell({r:R,c:C})];if(cell&&typeof cell.v==='number')cell.z='#,##0';}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Capacity plan');
+  XLSX.writeFile(wb,'Capacity_Leveled_Build_Plan_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Capacity plan exported');
 }
 
 /* ---------- order schedule page ---------- */
@@ -2226,10 +2445,19 @@ function prodPlanData(){
     let bal=onHand,coverDays=0,done=false;for(const w of weeks){const need=wk.get(+w.date)||0;if(need<=0){coverDays+=7;continue;}if(bal-need<=0){coverDays+=Math.max(0,Math.round(bal/need*7));done=true;break;}bal-=need;coverDays+=7;}if(!done)coverDays=weeks.length?coverDays:9999;if(!weeks.length)coverDays=9999;
     const curW=weeks.find(w=>T>=w.sd&&T<=addD(w.sd,6))||weeks[0];const weekly=curW?(wk.get(+curW.date)||0):0;
     let totPlan=0;for(const w of weeks)totPlan+=wk.get(+w.date)||0;
-    rows.push({code,desc,fgs:[...cm.fgs],wk,arrArr,onHand,basis,weekly:Math.round(weekly),coverDays,totPlan:Math.round(totPlan),fgTop:row?row.fgTop:[...cm.fgs].join(', '),floor:row?row.floor:false,cls:row?row.cls:null,orderBy:row?row.orderBy:null,suggest:row?row.suggest:0,pallet:row?row.pallet:(st?sizeOf(st.desc||desc).pallet:1900),incoming:row?row.incoming:0,lt:row?row.lt:28});
+    rows.push({code,desc,fgs:[...cm.fgs],wk,arrArr,onHand,basis,weekly:Math.round(weekly),coverDays,totPlan:Math.round(totPlan),planned:true,fgTop:row?row.fgTop:[...cm.fgs].join(', '),floor:row?row.floor:false,cls:row?row.cls:null,orderBy:row?row.orderBy:null,suggest:row?row.suggest:0,pallet:row?row.pallet:(st?sizeOf(st.desc||desc).pallet:1900),incoming:row?row.incoming:0,lt:row?row.lt:28});
   }
-  rows.sort((a,b)=>b.totPlan-a.totPlan);
-  return {rows,curPi,missingFg,T};
+  const planCount=rows.length;
+  // include every OTHER 12xxx can on file (inventory only, not on the plan) so on-hand ties out across all pages
+  const emptyWk=new Map();
+  for(const r of state.rows){
+    if(!/^12/.test(r.code)||canMap[r.code])continue;
+    rows.push({code:r.code,desc:r.desc||state.canDesc[r.code]||'',fgs:[],wk:emptyWk,arrArr:r.arrArr||new Float64Array(H),onHand:r.onHand||0,
+      basis:r.counted?'physical count':(r.adjusted?'system (adjusted in MAS)':'NetStock'),weekly:0,coverDays:9999,totPlan:0,planned:false,
+      fgTop:'\u2014',floor:!!r.floor,cls:r.cls||null,orderBy:(r.orderBy!=null?r.orderBy:null),suggest:r.suggest||0,pallet:r.pallet||1900,incoming:r.incoming||0,lt:r.lt||28});
+  }
+  rows.sort((a,b)=>(b.planned-a.planned)||(b.totPlan-a.totPlan)||((b.onHand||0)-(a.onHand||0)));
+  return {rows,curPi,missingFg,T,planCount};
 }
 function renderProdPlan(){
   const el=$('#prodplan');const T=today();
@@ -2237,7 +2465,7 @@ function renderProdPlan(){
   const dd=prodPlanData();const q=(state.q||'').trim().toLowerCase();
   const ppMatch=r=>{if(!q)return true;return q.split(',').map(s=>s.trim()).filter(Boolean).some(p=>String(r.code).toLowerCase().includes(p)||(r.desc||'').toLowerCase().includes(p)||r.fgs.some(f=>String(f).toLowerCase().includes(p)));};
   const rows=dd.rows.filter(ppMatch);const mode=state.ppMode||'wk';
-  if(state.ppView==='spread'){renderProdSpread(el,dd,rows,mode,T);return;}
+  if(state.ppView==='spread'){renderProdSpread(el,dd,rows.filter(r=>r.planned),mode,T);return;}
   const bks=ppBuckets(mode,T);const now=fiscalNow(T);
   const nowTxt=now?`Today <b>${dlong(T)}</b> · fiscal <b>P${now.per.p}</b>${now.wk?` · <b>Week ${now.wk.wk}</b> (${dstr(now.wk.sd)}–${dstr(now.wk.ed)})`:''} of ${now.per.w} — production-plan consumption`:'production-plan consumption';
   const data=rows.map(r=>{
@@ -2245,7 +2473,7 @@ function renderProdPlan(){
     const cells=bks.map(b=>{let need=0,arr=0;for(const d of b.weekDates)need+=r.wk.get(d)||0;for(let i=b.so;i<=b.eo;i++)arr+=r.arrArr[i]||0;bal+=arr-need;totNeed+=need;totArr+=arr;return {need,arr,eop:bal};});
     return {r,cells,totNeed,totArr,endFinal:cells.length?cells[cells.length-1].eop:r.onHand};
   });
-  const under2=rows.filter(r=>r.coverDays<14).length,under4=rows.filter(r=>r.coverDays>=14&&r.coverDays<28).length;
+  const plannedRows=rows.filter(r=>r.planned);const under2=plannedRows.filter(r=>r.coverDays<14).length,under4=plannedRows.filter(r=>r.coverDays>=14&&r.coverDays<28).length;
   const head=`<tr>
     <th class="stick c1">Can #</th><th class="stick c2">Description</th><th class="stick c3">FG → goes into</th><th class="stick c4">On hand<span class="bsub">today</span></th>
     ${bks.map(b=>`<th class="${b.cur?'cur':''}">${b.label}${b.cur?' · NOW':''}<span class="bsub">${b.sub}${b.partial?' (part.)':''}</span></th>`).join('')}
@@ -2268,10 +2496,10 @@ function renderProdPlan(){
     <button class="btn ghost" id="ppExp" style="margin-left:auto">⬇ Export</button>
   </div>
   <div class="covkpis" style="margin:4px 0 10px">
-    <div class="ckpi"><div class="cn">${rows.length}</div><div class="cl">cans in the plan</div></div>
+    <div class="ckpi"><div class="cn">${plannedRows.length}</div><div class="cl">cans in the plan</div><div class="cl" style="font-size:10px">of ${rows.length} on file</div></div>
     <div class="ckpi crit"><div class="cn">${under2}</div><div class="cl">under 2 weeks cover</div></div>
     <div class="ckpi warn"><div class="cn">${under4}</div><div class="cl">2–4 weeks cover</div></div>
-    <div class="ckpi ok"><div class="cn">${rows.length-under2-under4}</div><div class="cl">4+ weeks cover</div></div>
+    <div class="ckpi ok"><div class="cn">${plannedRows.length-under2-under4}</div><div class="cl">4+ weeks cover</div></div>
   </div>
   ${dd.missingFg&&dd.missingFg.length?`<div class="secnote">⚠️ ${dd.missingFg.length} plan item(s) not found in the BOM (no can demand): ${dd.missingFg.slice(0,12).join(', ')}${dd.missingFg.length>12?'…':''}</div>`:''}
   <div class="secnote">Each cell is <b>taken straight from the production plan's ${mode==='wk'?'weekly':'period'} column × BOM cans-per-case</b> — the plan week's cases for the finished good(s), multiplied by cans per case. Nothing is re-spread or re-bucketed. <b>end</b> = projected on-hand after the ${mode==='wk'?'week':'period'} (on hand − consumption + <span style="color:var(--green)">PO arrivals</span>) — red = shortfall by then. On-hand basis follows your count rule (physical if counted &amp; not adjusted, else NetStock). Click any can # for full detail.</div>
@@ -2465,20 +2693,23 @@ function render(){
   const T=today();
   // ---- page routing: board / consumption planner / order schedule ----
   const page=state.page||'board';
-  const onPlan=page==='plan',onOrders=page==='orders',onCover=page==='coverage',onTrack=page==='tracker',onProd=page==='prodplan',onBoard=page==='board';
+  const onPlan=page==='plan',onOrders=page==='orders',onCover=page==='coverage',onTrack=page==='tracker',onProd=page==='prodplan',onCap=page==='capacity',onBoard=page==='board';
   $('#tabBoard').classList.toggle('on',onBoard);
   $('#tabPlan').classList.toggle('on',onPlan);
   $('#tabOrders').classList.toggle('on',onOrders);
   $('#tabCover').classList.toggle('on',onCover);
   $('#tabTrack').classList.toggle('on',onTrack);
   $('#tabProd').classList.toggle('on',onProd);
+  $('#tabCap').classList.toggle('on',onCap);
   $('#planner').style.display=onPlan?'block':'none';
   $('#orders').style.display=onOrders?'block':'none';
   $('#coverage').style.display=onCover?'block':'none';
   $('#tracker').style.display=onTrack?'block':'none';
   $('#prodplan').style.display=onProd?'block':'none';
+  $('#capacity').style.display=onCap?'block':'none';
   $('#pgrid').style.display=onBoard?'flex':'none';
   document.querySelectorAll('.floorbar,.comanbar').forEach(el=>el.style.display=onBoard?'flex':'none');
+  if(onCap){renderCapacity();$('#empty').style.display=state.rows.length?'none':'block';return;}
   if(onProd){renderProdPlan();$('#empty').style.display='none';return;}
   if(onTrack){renderTracker();$('#empty').style.display='none';return;}
   if(onPlan){
@@ -3672,13 +3903,14 @@ $('#tabPlan').onclick=()=>{state.page='plan';render();};
 $('#tabOrders').onclick=()=>{state.page='orders';render();};
 $('#tabCover').onclick=()=>{state.page='coverage';render();};
 $('#tabProd').onclick=()=>{state.page='prodplan';render();};
+$('#tabCap').onclick=()=>{state.page='capacity';render();};
 $('#tabTrack').onclick=()=>{state.page='tracker';render();};
 $('#helpx').onclick=$('#helpovl').onclick=()=>{$('#helpdrawer').classList.remove('show');$('#helpovl').classList.remove('show');};
 $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();});
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v21 · count-upload-fix · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v28 · weekly-cap-full · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
