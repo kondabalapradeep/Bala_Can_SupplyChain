@@ -1990,6 +1990,82 @@ function capacityData(){
   cans.forEach((c,ci)=>{c.levTot=L[ci].reduce((a,b)=>a+b,0);c.endInv=c.onHand+c.poTot-c.levTot;});
   return {T,bks,caps,CAPWK,COV_MIN,CV_MAX,cans,L,weekOrig,weekLev:weekTot,pulledIn,pulledOut,residual,startOH:allOnHand,allOnHand,shownOH:demandOH,otherOH,poIn:allPoIn,poInShown,endInv,yearEnd};
 }
+function capPlanbar(CAPWK){
+  return `<div class="planbar">
+    <div class="modetog"><button id="cvInv" class="${state.capView!=='po'?'on':''}">Inventory &amp; leveling</button><button id="cvPO" class="${state.capView==='po'?'on':''}">PO plan (year)</button></div>
+    <label class="caplbl">Mission capacity (cans/wk) <input id="capInput" type="number" step="100000" value="${CAPWK}"></label>
+    <label class="caplbl">Cover target (weeks) <input id="capCov" type="number" min="1" max="8" step="1" value="${state.capCover||2}"></label>
+    <button class="btn ghost" id="capExp" style="margin-left:auto">\u2b07 Export ${state.capView==='po'?'PO plan':'plan'}</button>
+  </div>`;
+}
+function wireCapBar(){
+  const inv=$('#cvInv'),po=$('#cvPO');if(inv)inv.onclick=()=>{state.capView='inv';renderCapacity();};if(po)po.onclick=()=>{state.capView='po';renderCapacity();};
+  const ci=$('#capInput');if(ci)ci.onchange=()=>{const v=+ci.value;if(v>0){state.capWk=v;renderCapacity();}};
+  const cc=$('#capCov');if(cc)cc.onchange=()=>{state.capCover=Math.max(1,Math.min(8,+cc.value||2));renderCapacity();};
+  const ce=$('#capExp');if(ce)ce.onclick=()=>{state.capView==='po'?exportCapacityPO():exportCapacity();};
+}
+// Year-long PO placement to hold N weeks of cover on the capacity-LEVELED build, honoring MOQ / whole pallets / lead time.
+function capSpread(cans,L,bks,targetWeeks){
+  const MOQ=+(($('#setMOQ')||{}).value)||15200;const T=today();
+  return cans.map((c,ci)=>{
+    const cons=L[ci].slice();                                  // leveled build = cans consumed each week
+    const exist=bks.map(b=>{let a=0;const ar=c.x.arrArr;if(ar)for(let i=Math.max(0,b.so);i<=b.eo;i++)a+=ar[i]||0;return a;});
+    const target=bks.map((b,w)=>{let t=0;for(let k=1;k<=targetWeeks;k++)if(cons[w+k]!=null)t+=cons[w+k];return t;});
+    let inv=c.onHand,totNew=0;const newOrders=[];let end=inv;
+    for(let w=0;w<bks.length;w++){
+      inv=inv-cons[w]+exist[w];
+      let rec=Math.max(0,target[w]-inv);
+      if(rec>0.5){const pal=c.x.pallet||1900;rec=Math.ceil(Math.max(rec,MOQ)/pal)*pal;
+        const arriveDay=Math.max(0,bks[w].so),placeDay=arriveDay-(c.x.lt||28);
+        newOrders.push({code:c.x.code,desc:c.x.desc,fg:c.x.fgTop,w,qty:rec,arriveDay,placeDay,pallet:pal,lt:c.x.lt||28,arriveDate:addD(T,arriveDay),placeDate:addD(T,placeDay),label:bks[w].label});}
+      else rec=0;
+      inv+=rec;totNew+=rec;end=inv;
+    }
+    return {c,newOrders,totNew,endInv:end};
+  });
+}
+function renderCapacityPO(el,D){
+  const {bks,cans,L,CAPWK}=D;const T=D.T;const tgt=state.capCover||2;
+  const sp=capSpread(cans,L,bks,tgt);
+  const allOrders=[];sp.forEach(s=>s.newOrders.forEach(o=>allOrders.push(o)));
+  allOrders.sort((a,b)=>(a.placeDay-b.placeDay)||(b.qty-a.qty));
+  const totCans=allOrders.reduce((a,o)=>a+o.qty,0);
+  const TRUCK=+(($('#setTruck')||{}).value)||95000;
+  const yearEnd=sp.reduce((a,s)=>a+s.endInv,0);
+  const lastEd=bks.length?bks[bks.length-1].ed:T;
+  const headline=`<div class="capye">
+    <div>Year-long PO plan to hold <b>${tgt} week${tgt>1?'s':''}</b> of cover at each week-end: <b>${fmt(allOrders.length)} POs</b> \u00b7 <b>${fmt(Math.round(totCans))} cans</b> (\u2248${(totCans/TRUCK).toFixed(1)} trucks)</div>
+    <div style="margin-top:6px">Projected inventory at end of horizon (\u2248 ${dstr(lastEd)}): <b style="${yearEnd<0?'color:var(--red)':'color:#177245'}">${yearEnd<0?'\u2212':''}${fmt(Math.abs(Math.round(yearEnd)))} cans</b><span class="capyesub">holding ${tgt}-week cover on the capacity-leveled build; on-hand &amp; existing POs netted first \u00b7 MOQ / whole pallets / ${(+(($('#setLT')||{}).value)||28)}-day lead applied</span></div>
+  </div>`;
+  const rows=allOrders.map((o,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><b>${o.placeDay<=0?('TODAY'+(o.placeDay<0?' ('+(-o.placeDay)+'d late)':'')):dstr(o.placeDate)}</b></td>
+    <td class="mono"><span class="canlink" data-can="${o.code}">${o.code}</span></td>
+    <td>${(o.desc||'').replace(/^PK-A-?\s?CAN[- ]?/i,'')}</td>
+    <td>${o.fg||'\u2014'}</td>
+    <td style="text-align:right"><b>${fmt(Math.round(o.qty))}</b></td>
+    <td style="text-align:right">${(o.qty/TRUCK).toFixed(2)}</td>
+    <td>${dstr(o.arriveDate)} \u00b7 ${o.label}</td>
+  </tr>`).join('')||'<tr><td colspan="8" style="padding:16px;text-align:center;color:var(--dim)">No new POs needed to hold cover \u2014 on-hand + existing POs are sufficient.</td></tr>';
+  el.innerHTML=capPlanbar(CAPWK)+headline+
+    `<div class="capsec">\ud83d\udce6 PO placement schedule \u2014 sorted by place-by date \u00b7 honors MOQ, whole pallets, lead time &amp; ${fmt(TRUCK)}-can trucks. Changing the mission capacity re-levels the build and re-times these POs.</div>
+     <div class="ordwrap"><table class="ordtb"><thead><tr><th>#</th><th>Place order by</th><th>Can #</th><th>Description</th><th>FG</th><th style="text-align:right">Qty (cans)</th><th style="text-align:right">Trucks</th><th>Arrives</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  wireCapBar();
+  el.querySelectorAll('.canlink').forEach(a=>a.onclick=()=>{const c=a.dataset.can;if(state.rows.find(r=>r.code===c))openModal(c);});
+}
+function exportCapacityPO(){
+  const D=capacityData();const tgt=state.capCover||2;const sp=capSpread(D.cans,D.L,D.bks,tgt);
+  const all=[];sp.forEach(s=>s.newOrders.forEach(o=>all.push(o)));all.sort((a,b)=>(a.placeDay-b.placeDay)||(b.qty-a.qty));
+  if(!all.length){toast('No POs needed to hold cover');return;}
+  const TRUCK=+(($('#setTruck')||{}).value)||95000;
+  const aoa=[['#','Place order by','Can #','Description','FG','Qty (cans)','Trucks','Arrives','Arrive week','Lead (d)']];
+  all.forEach((o,i)=>aoa.push([i+1,o.placeDay<=0?('TODAY'+(o.placeDay<0?' ('+(-o.placeDay)+'d late)':'')):dstr(o.placeDate),o.code,o.desc,o.fg||'',Math.round(o.qty),+(o.qty/TRUCK).toFixed(2),dstr(o.arriveDate),o.label,o.lt]));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=[{wch:5},{wch:18},{wch:9},{wch:32},{wch:14},{wch:12},{wch:8},{wch:12},{wch:12},{wch:8}];
+  ws['!freeze']={xSplit:0,ySplit:1};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'PO plan');
+  XLSX.writeFile(wb,'Capacity_PO_Plan_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('PO plan exported');
+}
 function capTotalRow(bks,cans,L,poInShown){
   const r=n=>Math.round(n), f=n=>fmt(Math.round(n));
   const gOH=cans.reduce((a,c)=>a+c.onHand,0), gBuild=cans.reduce((a,c)=>a+c.levTot,0), gEnd=cans.reduce((a,c)=>a+c.endInv,0), gPO=cans.reduce((a,c)=>a+c.poTot,0);
@@ -2003,6 +2079,7 @@ function renderCapacity(){
   const el=$('#capacity');
   if(!state.rows.length){el.innerHTML='';return;}
   const D=capacityData();const {bks,caps,CAPWK,COV_MIN,CV_MAX,cans,L,weekOrig,weekLev,pulledIn,pulledOut,residual,startOH,allOnHand,shownOH,otherOH,poIn,poInShown,endInv,yearEnd}=D;
+  if(state.capView==='po'){renderCapacityPO(el,D);return;}
   const now=fiscalNow(D.T);
   const nowTxt=now?`Today <b>${dlong(D.T)}</b> \u00b7 fiscal <b>P${now.per.p}</b>${now.wk?` \u00b7 <b>Week ${now.wk.wk}</b>`:''}`:'';
   const capM=(CAPWK/1e6);
@@ -2068,19 +2145,15 @@ function renderCapacity(){
     </tr>`;
   }).join('');
   el.innerHTML=`
-  <div class="planbar">
-    <span class="now">${nowTxt} \u2014 capacity-leveled weekly build + year-end inventory</span>
-    <label class="caplbl">Mission capacity (cans/wk) <input id="capInput" type="number" step="100000" value="${CAPWK}"></label>
-    <button class="btn ghost" id="capExp" style="margin-left:auto">\u2b07 Export plan</button>
-  </div>
+  ${capPlanbar(CAPWK)}
+  <div class="planbar" style="border-top:none;padding-top:0"><span class="now">${nowTxt} \u2014 capacity-leveled weekly build + year-end inventory</span></div>
   ${headline}
   ${bullets}
   <div class="capsec">\u2696\ufe0f Weekly capacity, load &amp; inventory ${totalPulled>0?`\u2014 <b>${fmt(totalPulled)}</b> cans pre-built forward to fit capacity`:'\u2014 no leveling needed'}</div>
   <div class="planwrap">${summary}</div>
   <div class="capsec">Per-can leveled build &amp; year-end inventory \u2014 on-hand &amp; POs match the Board / Consumption Planner</div>
   <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}${capTotalRow(bks,cans,L,poInShown)}</tbody></table></div>`;
-  const ci=$('#capInput');if(ci)ci.onchange=()=>{const v=+ci.value;if(v>0){state.capWk=v;renderCapacity();}};
-  const ce=$('#capExp');if(ce)ce.onclick=exportCapacity;
+  wireCapBar();
   el.querySelectorAll('.canlink').forEach(a=>a.onclick=()=>{const c=a.dataset.can;if(c&&state.rows.find(r=>r.code===c))openModal(c);});
 }
 function exportCapacity(){
@@ -3910,7 +3983,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v28 · weekly-cap-full · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v29 · capacity-po-plan · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
