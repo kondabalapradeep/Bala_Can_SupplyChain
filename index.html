@@ -222,9 +222,9 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .ckpi.crit{background:#fdf1f1;border-color:#f0b6b6}.ckpi.crit .cn{color:var(--red)}
 .ckpi.warn{background:#fdf7ea;border-color:#eecfa0}.ckpi.warn .cn{color:#b06d00}
 .ckpi.ok{background:#eef8f0;border-color:#b9e0c4}.ckpi.ok .cn{color:var(--green)}
-.ckpi.ppfilt{cursor:pointer;transition:transform .06s,box-shadow .12s;user-select:none}
-.ckpi.ppfilt:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(20,50,90,.12)}
-.ckpi.ppfilt.sel{outline:2px solid var(--accent);outline-offset:1px;box-shadow:0 2px 10px rgba(20,50,90,.18)}
+.ckpi.ppfilt,.ckpi.ppsf{cursor:pointer;transition:transform .06s,box-shadow .12s;user-select:none}
+.ckpi.ppfilt:hover,.ckpi.ppsf:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(20,50,90,.12)}
+.ckpi.ppfilt.sel,.ckpi.ppsf.sel{outline:2px solid var(--accent);outline-offset:1px;box-shadow:0 2px 10px rgba(20,50,90,.18)}
 .covchips{display:flex;gap:7px;flex-wrap:wrap;margin:6px 0 12px}
 .covchip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:700;cursor:pointer;color:var(--dim)}
 .covchip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -1311,6 +1311,15 @@ function ppBuckets(mode,T){
 }
 
 /* ---------- engine ---------- */
+/* Combo finished goods: forecast/plan is on the MAIN code, but the BOM lives on the two sub-variants (each a
+   different can). One combo unit = 0.5 of each variant, so demand splits equally across the sub-items' cans. */
+const COMBOS={'AD40':['AD40-M','AD40-V'],'AH29':['AH29-Y','AH29-Z'],'AS23':['AS23-V','AS23-C']};
+function comboComps(fg){
+  const subs=COMBOS[fg];if(!subs)return null;
+  const share=1/subs.length;const out=[];
+  for(const sub of subs){const cs=state.billMap[sub];if(cs)for(const c of cs)out.push({can:c.can,qty:(c.qty||0)*share,combo:fg});}
+  return out.length?out:null;
+}
 function dim(y,p){return new Date(y,p,0).getDate();}
 function compute(){
   const T=today();
@@ -1322,7 +1331,7 @@ function compute(){
   if(!state.stock){state.rows=[];render();return;}
   const per=T.getMonth(),Y=T.getFullYear();
   const fgUse={};
-  for(const fg in state.billMap){
+  for(const fg of new Set([...Object.keys(state.billMap),...Object.keys(COMBOS)])){
     const f=state.forecast[fg];
     const pa=state.pa?state.pa[fg]:null;
     const CF=state.cust;
@@ -1377,7 +1386,7 @@ function compute(){
   for(let i=0;i<FISCAL26.length;i++){if(T>=FISCAL26[i].sd&&T<=FISCAL26[i].ed){ppCurPi=i;break;}if(T>FISCAL26[i].ed)ppCurPi=Math.min(i+1,11);}
   if(state.prodPlan){
     for(const fg in state.prodPlan){
-      const daily=fgProdDaily(fg,T,H);const comps=state.billMap[fg];if(!daily||!comps)continue;
+      const daily=fgProdDaily(fg,T,H);const comps=state.billMap[fg]||comboComps(fg);if(!daily||!comps)continue;
       for(const comp of comps){
         let target=comp.can;const tr=transByOld[comp.can];if(tr&&tr.ready&&tr.newCan)target=tr.newCan;
         const cm=ppByCan[target]=ppByCan[target]||{ppDay:new Float64Array(H),fgs:new Set()};
@@ -1389,7 +1398,8 @@ function compute(){
   const dem={},drivers={},paDem={},planDem={},fcDem={};
   for(const fg in fgUse){
     const u=fgUse[fg];
-    for(const comp of state.billMap[fg]){
+    const comps=state.billMap[fg]||comboComps(fg);if(!comps)continue;
+    for(const comp of comps){
       let targetCan=comp.can, movedFrom=null;
       const tr=transByOld[comp.can];
       if(tr&&tr.ready&&tr.newCan){targetCan=tr.newCan;movedFrom=comp.can;} // demand moves to the new can
@@ -2589,7 +2599,7 @@ function prodPlanData(){
   const weeks=ppWeekDates(T);                          // the plan's own future weeks
   const canMap={};const missingFg=[];
   for(const fg in state.prodPlan){
-    const pp=state.prodPlan[fg];const comps=state.billMap[fg];
+    const pp=state.prodPlan[fg];const comps=state.billMap[fg]||comboComps(fg);
     const hasQty=pp&&((pp.weekly&&pp.weekly.some(w=>w.qty>0))||(pp.periods&&pp.periods.some(v=>v>0)));
     if(!comps){if(hasQty)missingFg.push(fg);continue;}
     // per-FG weekly cases keyed by plan-week date (weekly columns used DIRECTLY — no day-spread)
@@ -2687,6 +2697,7 @@ function renderProdPlan(){
   </div>
   <div style="margin:2px 0 10px;font-size:12px;color:var(--dim)">Cover basis: <span class="modetog" style="display:inline-flex;vertical-align:middle"><button id="ppcOH" class="${ppc==='oh'?'on':''}">On-hand only</button><button id="ppcPO" class="${ppc==='ohpo'?'on':''}">On-hand + POs coming in</button></span> <span style="margin-left:6px">${ppc==='ohpo'?'cans a PO tops up this week are <b>not</b> counted as short':'incoming POs are ignored'}</span></div>
   ${ppf?`<div class="secnote" style="background:#eef4ff;border-color:#cfe0f5">Filtered to <b>${data.length}</b> can(s) — ${ppf==='plan'?'in the plan':ppf==='u2'?'under 2 weeks cover':ppf==='u4'?'2–4 weeks cover':'4+ weeks cover'}. <a href="#" id="ppfClear" style="color:var(--accent);font-weight:700">Clear filter ✕</a></div>`:''}
+  ${(()=>{const cs=Object.keys(COMBOS).filter(fg=>state.prodPlan&&state.prodPlan[fg]||(state.forecast&&state.forecast[fg]));return cs.length?`<div class="secnote" style="background:#f3f0fb;border-color:#d8cdf0">🔀 <b>Combo items</b> — demand splits <b>50/50</b> across two cans (via the BOM): ${cs.map(fg=>`<b>${fg}</b> \u2192 ${COMBOS[fg].join(' + ')}`).join(' \u00b7 ')}. Each combo unit uses 0.5 of each variant's can.</div>`:'';})()}
   ${dd.missingFg&&dd.missingFg.length?`<div class="secnote">⚠️ ${dd.missingFg.length} plan item(s) not found in the BOM (no can demand): ${dd.missingFg.slice(0,12).join(', ')}${dd.missingFg.length>12?'…':''}</div>`:''}
   <div class="secnote">Each cell is <b>taken straight from the production plan's ${mode==='wk'?'weekly':'period'} column × BOM cans-per-case</b> — the plan week's cases for the finished good(s), multiplied by cans per case. Nothing is re-spread or re-bucketed. <b>end</b> = projected on-hand after the ${mode==='wk'?'week':'period'} (on hand − consumption + <span style="color:var(--green)">PO arrivals</span>) — red = shortfall by then. On-hand basis follows your count rule (physical if counted &amp; not adjusted, else NetStock). Click any can # for full detail.</div>
   <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}
@@ -2731,10 +2742,13 @@ function renderProdSpread(el,dd,rows,mode,T){
   const nowTxt=now?`Today <b>${dlong(T)}</b> · fiscal <b>P${now.per.p}</b> — recommended order spread to hold <b>${tgt} weeks</b> of cover at each week-end`:'';
   const sp=spreadPlan(rows,bks,tgt);
   const needMore=sp.filter(s=>s.totNew>0),haveExtra=sp.filter(s=>s.totNew===0&&s.removable>0);
+  const spf=state.ppSpreadFilter;
+  const passSp=s=>{if(spf==='need')return s.totNew>0;if(spf==='removable')return s.totNew===0&&s.removable>0;if(spf==='covered')return s.totNew===0&&s.removable<=0;return true;};
+  const view=sp.filter(passSp);
   const head=`<tr><th class="stick c1">Can #</th><th class="stick c2">Description</th><th class="stick c3">FG</th><th class="stick c4">On hand</th>
     ${bks.map(b=>`<th class="${b.cur?'cur':''}">${b.label}${b.cur?' · NOW':''}<span class="bsub">${b.sub}</span></th>`).join('')}
     <th class="ctot">Plan vs open POs</th></tr>`;
-  const body=sp.map((s,i)=>{const r=s.r;return `<tr>
+  const body=view.map((s,i)=>{const r=s.r;return `<tr>
     <td class="stick c1 mono"><span class="canlink" data-can="${r.code}">${r.code}</span></td>
     <td class="stick c2" title="${r.desc}"><span class="rk">#${i+1}</span>${(r.desc||'').replace(/^PK-A-?\s?CAN[- ]?/i,'')}${r.floor?' <span class="fschip">FLOOR</span>':''}</td>
     <td class="stick c3">${r.fgTop||r.fgs.join(', ')||'—'}</td>
@@ -2742,7 +2756,7 @@ function renderProdSpread(el,dd,rows,mode,T){
     ${s.cells.map((c,j)=>`<td class="${bks[j].cur?'cur':''}"><span class="need ${c.cons<1?'z':''}">${c.cons<1?'·':fmt(Math.round(c.cons))}</span>${c.exist>0?`<span class="sub po">+${fmt(Math.round(c.exist))} PO</span>`:''}${c.rec>0?`<span class="sub" style="color:#177245;font-weight:800">↳ place ${fmt(Math.round(c.rec))}</span>`:''}<span class="sub ${c.end<0?'neg':''}">end ${c.end<0?'−':''}${fmt(Math.abs(Math.round(c.end)))}</span></td>`).join('')}
     <td class="ctot">${s.totNew>0?`<span class="sub" style="color:#177245;font-weight:800">place ${fmt(Math.round(s.totNew))} new</span>`:(s.removable>0?`<span class="sub" style="color:#b06d00;font-weight:800">−${fmt(s.removable)} removable</span>`:'<span class="sub">covered ✓</span>')}<span class="sub">on order ${fmt(Math.round(s.totExist))}</span></td></tr>`;}).join('')||'<tr><td colspan="6" style="padding:14px;color:var(--dim)">No plan cans match.</td></tr>';
   // ---- flat PO placement list ----
-  const allNew=[];sp.forEach(s=>s.newOrders.forEach(o=>allNew.push({code:s.r.code,desc:s.r.desc,fg:s.r.fgTop||s.r.fgs.join(', '),...o,lt:s.r.lt})));
+  const allNew=[];view.forEach(s=>s.newOrders.forEach(o=>allNew.push({code:s.r.code,desc:s.r.desc,fg:s.r.fgTop||s.r.fgs.join(', '),...o,lt:s.r.lt})));
   allNew.sort((a,b)=>a.placeDay-b.placeDay);
   const listRows=allNew.map(o=>`<tr>
     <td class="${o.placeDay<=0?'plnow':''}">${o.placeDay<=0?'place TODAY':dstr(o.placeDate)}${o.placeDay<0?` <span style="color:var(--red)">(${-o.placeDay}d late)</span>`:''}</td>
@@ -2751,6 +2765,9 @@ function renderProdSpread(el,dd,rows,mode,T){
     <td>${o.fg}</td><td class="num"><b>${fmt(Math.round(o.qty))}</b></td>
     <td>${o.label} · arrive ${dstr(o.arriveDate)}</td></tr>`).join('')||'<tr><td colspan="6" style="padding:12px;color:var(--dim)">No new POs needed — existing POs already hold the plan within your target cover.</td></tr>';
   const totNewAll=allNew.reduce((a,o)=>a+o.qty,0);
+  const twCons=bks.map((b,w)=>view.reduce((a,s)=>a+s.cells[w].cons,0)),twExist=bks.map((b,w)=>view.reduce((a,s)=>a+s.cells[w].exist,0)),twRec=bks.map((b,w)=>view.reduce((a,s)=>a+s.cells[w].rec,0)),twEnd=bks.map((b,w)=>view.reduce((a,s)=>a+s.cells[w].end,0));
+  const tOH=view.reduce((a,s)=>a+s.r.onHand,0),tNew=view.reduce((a,s)=>a+s.totNew,0),tExist=view.reduce((a,s)=>a+s.totExist,0);
+  const totalRow=`<tr class="tot"><td class="stick c1"></td><td class="stick c2">TOTAL \u2014 ${view.length} cans</td><td class="stick c3"></td><td class="stick c4"><b>${fmt(Math.round(tOH))}</b></td>${bks.map((b,w)=>`<td class="${b.cur?'cur':''}"><span class="need"><b>${fmt(Math.round(twCons[w]))}</b></span>${twExist[w]>0.5?`<span class="sub po">+${fmt(Math.round(twExist[w]))} PO</span>`:''}${twRec[w]>0.5?`<span class="sub" style="color:#177245;font-weight:800">\u21b3 ${fmt(Math.round(twRec[w]))}</span>`:''}<span class="sub ${twEnd[w]<0?'neg':''}">end ${twEnd[w]<0?'\u2212':''}${fmt(Math.abs(Math.round(twEnd[w])))}</span></td>`).join('')}<td class="ctot"><span class="sub" style="color:#177245;font-weight:800">place ${fmt(Math.round(tNew))}</span><span class="sub">on order ${fmt(Math.round(tExist))}</span></td></tr>`;
   el.innerHTML=`
   <div class="planbar">
     <div class="modetog"><button id="ppvGrid">Consumption grid</button><button id="ppvSpread" class="on">Order spread plan</button></div>
@@ -2759,14 +2776,15 @@ function renderProdSpread(el,dd,rows,mode,T){
     <span class="now">${nowTxt}</span>
     <button class="btn ghost" id="ppExp" style="margin-left:auto">⬇ Export grid</button>
   </div>
-  <div class="covkpis" style="margin:4px 0 10px">
-    <div class="ckpi"><div class="cn">${sp.length}</div><div class="cl">plan cans</div></div>
-    <div class="ckpi crit"><div class="cn">${needMore.length}</div><div class="cl">need new POs</div></div>
-    <div class="ckpi warn"><div class="cn">${haveExtra.length}</div><div class="cl">over-ordered — removable</div></div>
-    <div class="ckpi ok"><div class="cn">${sp.length-needMore.length-haveExtra.length}</div><div class="cl">covered by existing</div></div>
+  <div class="covkpis" style="margin:4px 0 6px">
+    <div class="ckpi ppsf ${spf==='plan'?'sel':''}" data-spf="plan"><div class="cn">${sp.length}</div><div class="cl">plan cans</div></div>
+    <div class="ckpi crit ppsf ${spf==='need'?'sel':''}" data-spf="need"><div class="cn">${needMore.length}</div><div class="cl">need new POs</div></div>
+    <div class="ckpi warn ppsf ${spf==='removable'?'sel':''}" data-spf="removable"><div class="cn">${haveExtra.length}</div><div class="cl">over-ordered — removable</div></div>
+    <div class="ckpi ok ppsf ${spf==='covered'?'sel':''}" data-spf="covered"><div class="cn">${sp.length-needMore.length-haveExtra.length}</div><div class="cl">covered by existing</div></div>
   </div>
+  ${spf?`<div class="secnote" style="background:#eef4ff;border-color:#cfe0f5;margin-bottom:8px">Filtered to <b>${view.length}</b> can(s) — ${spf==='need'?'need new POs':spf==='removable'?'over-ordered (removable)':spf==='covered'?'covered by existing POs':'the plan'}. <a href="#" id="spfClear" style="color:var(--accent);font-weight:700">Clear filter ✕</a></div>`:''}
   <div class="secnote">Recommended <b>order arrivals per week</b> that keep each can's week-end inventory at about <b>${tgt} weeks</b> of upcoming consumption. Each week nets your <b>existing POs</b> (+PO) first, then adds a <span style="color:#177245">↳ place</span> only where you're still short — so <b>end</b> stays near target, never starved, never over-filled. Right column: <span style="color:#177245">place N new</span> or <span style="color:#b06d00">−removable</span> (existing POs you could cancel and still hold target). Change the weeks box to re-plan.</div>
-  <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+  <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}${totalRow}</tbody></table></div>
   <div class="planbar" style="margin-top:16px"><span class="now"><b>📋 PO placement plan</b> — the concrete POs to place so the ${tgt}-week plan holds, in place-by order. <b>${allNew.length} PO(s) · ${fmt(Math.round(totNewAll))} cans.</b> Existing POs are already netted out.</span><button class="btn ghost" id="ppListExp" style="margin-left:auto">⬇ Download PO list (Excel)</button></div>
   <div class="pptable"><table><thead><tr><th>Place by</th><th>Can #</th><th>Description</th><th>FG</th><th class="num">Qty</th><th>Arrives</th></tr></thead><tbody>${listRows}</tbody></table></div>`;
   $('#ppmWk').onclick=()=>{state.ppMode='wk';renderProdPlan();};
@@ -2776,6 +2794,8 @@ function renderProdSpread(el,dd,rows,mode,T){
   $('#ppTgt').onchange=()=>{state.ppTarget=Math.max(1,Math.min(6,+$('#ppTgt').value||2));renderProdPlan();};
   $('#ppExp').onclick=exportProdSpread;
   $('#ppListExp').onclick=()=>exportPOList(allNew,tgt);
+  el.querySelectorAll('.ppsf[data-spf]').forEach(c=>c.onclick=()=>{const f=c.dataset.spf;state.ppSpreadFilter=(state.ppSpreadFilter===f?null:f);renderProdPlan();});
+  {const sc=$('#spfClear');if(sc)sc.onclick=(e)=>{e.preventDefault();state.ppSpreadFilter=null;renderProdPlan();};}
   el.querySelectorAll('.canlink[data-can]').forEach(m=>m.onclick=()=>{if(state.rows.some(r=>r.code===m.dataset.can))openModal(m.dataset.can);else toast('No detail for '+m.dataset.can);});
   const curTh=el.querySelector('.plantb thead th.cur');if(curTh)el.querySelector('.planwrap').scrollLeft=Math.max(0,curTh.offsetLeft-460);
   $('#hdMeta').textContent=`Order spread · ${tgt}-wk target · ${allNew.length} POs to place · ${needMore.length} cans short`;
@@ -4098,7 +4118,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v37 · count-netstock-default · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v39 · combo-items · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
