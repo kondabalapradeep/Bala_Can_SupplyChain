@@ -2104,8 +2104,11 @@ function renderCapacityPO(el,D){
   const {bks,cans,L,CAPWK}=D;const T=D.T;const tgt=state.capCover||2;
   const sp=capSpread(cans,L,bks,tgt);
   const needMore=sp.filter(s=>s.totNew>0),haveExtra=sp.filter(s=>s.totNew===0&&s.removable>0);
+  const cpf=state.capPoFilter;
+  const passCp=s=>{if(cpf==='need')return s.totNew>0;if(cpf==='removable')return s.totNew===0&&s.removable>0;if(cpf==='covered')return s.totNew===0&&s.removable<=0;return true;};
+  const view=sp.filter(passCp);
   const TRUCK=+(($('#setTruck')||{}).value)||95000;
-  const allNew=[];sp.forEach(s=>s.newOrders.forEach(o=>allNew.push(o)));allNew.sort((a,b)=>(a.placeDay-b.placeDay)||(b.qty-a.qty));
+  const allNew=[];view.forEach(s=>s.newOrders.forEach(o=>allNew.push(o)));allNew.sort((a,b)=>(a.placeDay-b.placeDay)||(b.qty-a.qty));
   const totNewAll=allNew.reduce((a,o)=>a+o.qty,0);
   const idleCarry=cans.reduce((a,c)=>a+(c.tot<=0?(c.onHand+(c.poTot||0)):0),0);
   const yearEnd=idleCarry+sp.reduce((a,s)=>a+s.endInv,0);
@@ -2113,7 +2116,7 @@ function renderCapacityPO(el,D){
   const head=`<tr><th class="stick c1">Can #</th><th class="stick c2">Description</th><th class="stick c3">FG</th><th class="stick c4">On hand</th>
     ${bks.map(b=>`<th class="${b.cur?'cur':''}">${b.label}${b.cur?' \u00b7 NOW':''}<span class="bsub">${b.sub}</span></th>`).join('')}
     <th class="ctot">Plan vs open POs</th></tr>`;
-  const body=sp.map((s,i)=>{const r=s.r;return `<tr>
+  const body=view.map((s,i)=>{const r=s.r;return `<tr>
     <td class="stick c1 mono"><span class="canlink" data-can="${r.code}">${r.code}</span></td>
     <td class="stick c2" title="${(r.desc||'').replace(/"/g,'&quot;')}"><span class="rk">#${i+1}</span>${(r.desc||'').replace(/^PK-A-?\s?CAN[- ]?/i,'')}${r.floor?' <span class="fschip">FLOOR</span>':''}</td>
     <td class="stick c3">${r.fgTop||'\u2014'}</td>
@@ -2128,18 +2131,21 @@ function renderCapacityPO(el,D){
     <td>${o.label} \u00b7 arrive ${dstr(o.arriveDate)}</td></tr>`).join('')||'<tr><td colspan="6" style="padding:12px;color:var(--dim)">No new POs needed \u2014 existing POs already hold the target cover.</td></tr>';
   el.innerHTML=capPlanbar(CAPWK)+
   `<div class="capye"><div>Year-long PO plan to hold <b>${tgt} week${tgt>1?'s':''}</b> of cover at each week-end: <b>${fmt(allNew.length)} POs</b> \u00b7 <b>${fmt(Math.round(totNewAll))} cans</b> (\u2248${(totNewAll/TRUCK).toFixed(1)} trucks)</div><div style="margin-top:6px">Projected inventory at end of horizon (\u2248 ${dstr(lastEd)}): <b style="${yearEnd<0?'color:var(--red)':'color:#177245'}">${yearEnd<0?'\u2212':''}${fmt(Math.abs(Math.round(yearEnd)))} cans</b><span class="capyesub">holding ${tgt}-week cover on the capacity-leveled build; on-hand &amp; existing POs netted first</span></div></div>
-  <div class="covkpis" style="margin:4px 0 10px">
-    <div class="ckpi"><div class="cn">${sp.length}</div><div class="cl">cans to plan</div></div>
-    <div class="ckpi crit"><div class="cn">${needMore.length}</div><div class="cl">need new POs</div></div>
-    <div class="ckpi warn"><div class="cn">${haveExtra.length}</div><div class="cl">over-ordered \u2014 removable</div></div>
-    <div class="ckpi ok"><div class="cn">${sp.length-needMore.length-haveExtra.length}</div><div class="cl">covered by existing</div></div>
+  <div class="covkpis" style="margin:4px 0 6px">
+    <div class="ckpi ppsf ${cpf==='plan'?'sel':''}" data-cpf="plan"><div class="cn">${sp.length}</div><div class="cl">cans to plan</div></div>
+    <div class="ckpi crit ppsf ${cpf==='need'?'sel':''}" data-cpf="need"><div class="cn">${needMore.length}</div><div class="cl">need new POs</div></div>
+    <div class="ckpi warn ppsf ${cpf==='removable'?'sel':''}" data-cpf="removable"><div class="cn">${haveExtra.length}</div><div class="cl">over-ordered \u2014 removable</div></div>
+    <div class="ckpi ok ppsf ${cpf==='covered'?'sel':''}" data-cpf="covered"><div class="cn">${sp.length-needMore.length-haveExtra.length}</div><div class="cl">covered by existing</div></div>
   </div>
+  ${cpf?`<div class="secnote" style="background:#eef4ff;border-color:#cfe0f5;margin-bottom:8px">Filtered to <b>${view.length}</b> can(s) — ${cpf==='need'?'need new POs':cpf==='removable'?'over-ordered (removable)':cpf==='covered'?'covered by existing POs':'the plan'}. <a href="#" id="cpfClear" style="color:var(--accent);font-weight:700">Clear filter ✕</a></div>`:''}
   <div class="secnote">Recommended <b>order arrivals per week</b> that keep each can's week-end inventory at about <b>${tgt} weeks</b> of upcoming consumption (the capacity-leveled build). Each week nets your <b>existing POs</b> (+PO) first, then adds a <span style="color:#177245">\u21b3 place</span> only where still short \u2014 so <b>end</b> stays near target. Right column: <span style="color:#177245">place N new</span> or <span style="color:#b06d00">\u2212removable</span>. Honors MOQ, whole pallets &amp; lead time. Changing mission capacity re-levels the build and re-times these orders.</div>
   <div class="planwrap"><table class="plantb"><thead>${head}</thead><tbody>${body}</tbody></table></div>
   <div class="planbar" style="margin-top:16px"><span class="now"><b>\ud83d\udccb PO placement plan</b> \u2014 the concrete POs to place, in place-by order. <b>${allNew.length} PO(s) \u00b7 ${fmt(Math.round(totNewAll))} cans.</b></span><button class="btn ghost" id="capListExp" style="margin-left:auto">\u2b07 Download PO list</button></div>
   <div class="pptable"><table><thead><tr><th>Place by</th><th>Can #</th><th>Description</th><th>FG</th><th class="num">Qty</th><th>Arrives</th></tr></thead><tbody>${listRows}</tbody></table></div>`;
   wireCapBar();
   const le=$('#capListExp');if(le)le.onclick=()=>exportCapacityPOList(allNew,tgt);
+  el.querySelectorAll('.ppsf[data-cpf]').forEach(c=>c.onclick=()=>{const f=c.dataset.cpf;state.capPoFilter=(state.capPoFilter===f?null:f);renderCapacity();});
+  {const cc=$('#cpfClear');if(cc)cc.onclick=(e)=>{e.preventDefault();state.capPoFilter=null;renderCapacity();};}
   el.querySelectorAll('.canlink').forEach(a=>a.onclick=()=>{const c=a.dataset.can;if(state.rows.find(r=>r.code===c))openModal(c);});
   const curTh=el.querySelector('.plantb thead th.cur');if(curTh){const wrap=el.querySelector('.planwrap');if(wrap)wrap.scrollLeft=Math.max(0,curTh.offsetLeft-460);}
 }
@@ -4118,7 +4124,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v39 · combo-items · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v40 · cap-po-kpi-filter · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
