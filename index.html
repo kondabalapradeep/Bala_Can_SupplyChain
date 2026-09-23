@@ -988,8 +988,9 @@ function parseStock(wb){
   const iC=ix('Product code'),iD=ix('Description'),iOH=ix('On hand'),iLT=ix('LT days'),iOO=ix('On order'),iS=ix('Supplier description'),iSt=ix('Status'),iSS=ix('SS units'),iRC=ix('RC days');
   const out={};
   for(let i=1;i<r.length;i++){
-    const d=String(r[i][iD]||'');if(!isCan(d))continue;
     const code=String(r[i][iC]||'').trim();if(!code)continue;
+    const d=String(r[i][iD]||'');
+    if(!/^12\d{3}$/.test(code)&&!isCan(d))continue;   // a can = 12xxx item code; some cans are named PK-A-KIRKLAND / FAVORITE DAY / BON SUISSE etc., not PK-A-CAN — key off the code, not the description
     out[code]={code,desc:d.trim(),onHand:+r[i][iOH]||0,lt:+r[i][iLT]||null,onOrderSys:+r[i][iOO]||0,
       supplier:String(r[i][iS]||''),ns:String(r[i][iSt]||''),ss:+r[i][iSS]||0,rc:+r[i][iRC]||0};
   }
@@ -1116,10 +1117,10 @@ function parsePO(wb){
   const iPO=ix('PurchaseOrderNo'),iIC=ix('ItemCode'),iDs=ix('ItemCodeDesc'),iRD=ix('RequiredDate'),iQO=ix('QuantityOrdered'),iQR=ix('QuantityReceived'),iCF=ix('UnitOfMeasureConvFactor');
   const out={};
   for(let i=1;i<r.length;i++){
-    const ds=String(r[i][iDs]||'');if(!isCan(ds))continue;
+    const ds=String(r[i][iDs]||'');const code=String(r[i][iIC]||'').trim();
+    if(!/^12\d{3}$/.test(code)&&!isCan(ds))continue;   // can = 12xxx item code (description naming varies)
     const open=((+r[i][iQO]||0)-(+r[i][iQR]||0))*(+r[i][iCF]||1);
     if(open<=0)continue;
-    const code=String(r[i][iIC]||'').trim();
     (out[code]=out[code]||[]).push({po:String(r[i][iPO]||''),date:xDate(r[i][iRD]),qty:open});
   }
   return out;
@@ -4124,7 +4125,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v40 · cap-po-kpi-filter · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v41 · stock-onhand-by-code · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
