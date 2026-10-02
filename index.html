@@ -743,6 +743,9 @@ tr.ltorow td.stick.c1,tr.ltorow td:first-child{box-shadow:inset 3px 0 0 var(--pu
     <h3>🔎 The item dossier — click any can #</h3>
     <div class="rule"><b>What it shows:</b> for one can — supply on hand, days of supply, DSC floor stock, and three headline coverage points (<b>Firm PA covered</b>, <b>Production plan covered</b>, <b>Forecast days of supply</b>), followed by the plain-English "why," key dates, demand drivers, open POs, and the firm PA sales orders behind it. <b>How we use it:</b> the single source of truth for one can when someone asks "why are we ordering this / when do we run out."</div>
 
+    <h3>🔄 Item transitions (old can → new can)</h3>
+    <div class="rule"><b>Rolling transition:</b> the <b>old can is consumed first</b> — all demand for the item is shown on the old can until its on-hand (plus any already-placed POs) runs to zero, and only the remainder then moves to the new can, week by week. We <b>never place new POs for the old can</b> on a rolling transition — the goal is to run it down. Orders are placed on the <b>new can</b> only for the demand that spills past the old can's depletion, timed with the normal lead time. <b>Hard cut / transition complete:</b> all demand moves to the new can immediately. A transition only becomes active once it's marked <b>Ready for order</b>; until then everything stays on the old can.</div>
+
     <h3 style="margin-top:18px;padding-top:6px;border-top:2px solid #e3e9f1">📖 Worked example — one can, every number explained</h3>
     <div class="rule" style="background:#fbf7ef;border-color:#ecdfba">This walks through a single real can from today's data, step by step, so a new team member can see exactly where each number comes from and how it turns into an order decision. Load your files and the example uses a live can; otherwise it shows an illustration.</div>
     <div id="sopWorked"><div class="rule" style="color:var(--dim)">Open this panel with data loaded to see a live worked example.</div></div>
@@ -1520,16 +1523,25 @@ function compute(){
     maps.forEach(m=>{m[oc]=m[oc]||new Float64Array(H);m[nc]=m[nc]||new Float64Array(H);});
     if(mode==='hard'){
       for(let i=0;i<H;i++)maps.forEach(m=>{m[nc][i]+=m[oc][i];m[oc][i]=0;});
-    }else{ // roll — deplete old can (on-hand + its open POs) first, spill the rest forward to the new can
+    }else{ // roll — the OLD can's on-hand + already-placed POs are consumed FIRST, then the remainder moves to the NEW can.
+      // Pool the item's demand across BOTH cans (it can land natively on either can depending on which the BOM lists for the
+      // finished good), then allocate OLD-first up to the old can's available supply. No NEW POs are ever placed for the old can.
       let rem=canOH(oc);const oarr=canArr(oc,T,H);
-      for(let i=0;i<H;i++){rem+=oarr[i];const dTot=dem[oc][i];if(dTot<=0)continue;const served=Math.min(dTot,Math.max(0,rem));rem-=served;const f=(dTot-served)/dTot;if(f>1e-6){maps.forEach(m=>{const mv=m[oc][i]*f;m[nc][i]+=mv;m[oc][i]-=mv;});}}
+      for(let i=0;i<H;i++){rem+=oarr[i];
+        const tot=dem[oc][i]+dem[nc][i];                              // true item demand this day, wherever the BOM routed it
+        if(tot<=0){maps.forEach(m=>{m[oc][i]=0;m[nc][i]=0;});continue;}
+        const servedOld=Math.min(tot,Math.max(0,rem));rem-=servedOld; // old can serves while it still has supply
+        const oldShare=servedOld/tot;
+        maps.forEach(m=>{const lt=m[oc][i]+m[nc][i];m[oc][i]=lt*oldShare;m[nc][i]=lt*(1-oldShare);});
+      }
     }
-    // apply the SAME move to the production-plan-only stream (ppByCan) so the modal's plan-cover line agrees
-    if(ppByCan[oc]){
+    // apply the SAME pooling to the production-plan-only stream (ppByCan) so the modal's plan-cover line agrees
+    if(ppByCan[oc]||ppByCan[nc]){
+      ppByCan[oc]=ppByCan[oc]||{ppDay:new Float64Array(H),fgs:new Set()};
       ppByCan[nc]=ppByCan[nc]||{ppDay:new Float64Array(H),fgs:new Set()};
-      ppByCan[oc].fgs.forEach(f=>ppByCan[nc].fgs.add(f));
-      if(mode==='hard'){for(let i=0;i<H;i++){ppByCan[nc].ppDay[i]+=ppByCan[oc].ppDay[i];ppByCan[oc].ppDay[i]=0;}}
-      else{let rem=canOH(oc);const oarr=canArr(oc,T,H);for(let i=0;i<H;i++){rem+=oarr[i];const dt=ppByCan[oc].ppDay[i];if(dt<=0)continue;const sv=Math.min(dt,Math.max(0,rem));rem-=sv;ppByCan[nc].ppDay[i]+=(dt-sv);ppByCan[oc].ppDay[i]=sv;}}
+      ppByCan[oc].fgs.forEach(f=>ppByCan[nc].fgs.add(f));ppByCan[nc].fgs.forEach(f=>ppByCan[oc].fgs.add(f));
+      if(mode==='hard'){for(let i=0;i<H;i++){const t=ppByCan[oc].ppDay[i]+ppByCan[nc].ppDay[i];ppByCan[nc].ppDay[i]=t;ppByCan[oc].ppDay[i]=0;}}
+      else{let rem=canOH(oc);const oarr=canArr(oc,T,H);for(let i=0;i<H;i++){rem+=oarr[i];const t=ppByCan[oc].ppDay[i]+ppByCan[nc].ppDay[i];if(t<=0){ppByCan[oc].ppDay[i]=0;ppByCan[nc].ppDay[i]=0;continue;}const sv=Math.min(t,Math.max(0,rem));rem-=sv;ppByCan[oc].ppDay[i]=sv;ppByCan[nc].ppDay[i]=t-sv;}}
     }
     if(drivers[oc]){(drivers[nc]=drivers[nc]||[]).push(...drivers[oc].map(d=>({...d,transFrom:oc})));}
   }
@@ -2743,16 +2755,20 @@ function prodPlanData(){
       for(const[d,cases]of fgWk){cm.wk.set(d,(cm.wk.get(d)||0)+cases*comp.qty);}   // cans = cases × cans-per-case
     }
   }
-  // item transitions on the weekly plan streams — hard/complete moves all to the new can; rolling depletes the old can (on-hand + open POs) first, then spills to the new can
+  // item transitions on the weekly plan streams — hard/complete moves all to the new can; rolling consumes the OLD can
+  // (on-hand + already-placed POs) FIRST, then the remainder moves to the new can. Demand is pooled across both cans so
+  // it works no matter which can the BOM routes the finished good to — the old can shows consumption until it depletes.
   for(const tr of (state.transitions||[])){
     const mode=transMode(tr);if(mode==='off')continue;
-    const oc=tr.oldCan,nc=tr.newCan;const src=canMap[oc];if(!src)continue;
+    const oc=tr.oldCan,nc=tr.newCan;
+    if(!canMap[oc]&&!canMap[nc])continue;                       // this item isn't on the plan at all
+    const old=canMap[oc]=canMap[oc]||{fgs:new Set(),wk:new Map()};
     const dst=canMap[nc]=canMap[nc]||{fgs:new Set(),wk:new Map()};
-    src.fgs.forEach(f=>dst.fgs.add(f));
-    const wks=[...src.wk.keys()].sort((a,b)=>a-b);
-    if(mode==='hard'){for(const d of wks){dst.wk.set(d,(dst.wk.get(d)||0)+src.wk.get(d));src.wk.set(d,0);}}
+    old.fgs.forEach(f=>dst.fgs.add(f));dst.fgs.forEach(f=>old.fgs.add(f));
+    const wks=[...new Set([...old.wk.keys(),...dst.wk.keys()])].sort((a,b)=>a-b);
+    if(mode==='hard'){for(const d of wks){const tot=(old.wk.get(d)||0)+(dst.wk.get(d)||0);dst.wk.set(d,tot);old.wk.set(d,0);}}
     else{let rem=canOH(oc)+((state.po&&state.po[oc])?state.po[oc].reduce((a,p)=>a+(p.qty||0),0):0);
-      for(const d of wks){const need=src.wk.get(d)||0;if(need<=0)continue;const served=Math.min(need,Math.max(0,rem));rem-=served;const spill=need-served;if(spill>0){dst.wk.set(d,(dst.wk.get(d)||0)+spill);src.wk.set(d,served);}}}
+      for(const d of wks){const tot=(old.wk.get(d)||0)+(dst.wk.get(d)||0);if(tot<=0){old.wk.set(d,0);dst.wk.set(d,0);continue;}const served=Math.min(tot,Math.max(0,rem));rem-=served;old.wk.set(d,served);dst.wk.set(d,tot-served);}}
   }
   const rows=[];
   for(const code in canMap){
@@ -4581,7 +4597,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v47 · SOP worked example · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v48 · rolling transition deplete-old-first · '+new Date().toISOString().slice(0,10);
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
