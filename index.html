@@ -386,6 +386,22 @@ tr.ltorow td.stick.c1,tr.ltorow td:first-child{box-shadow:inset 3px 0 0 var(--pu
 .fcbuy{display:inline-block;background:#f1e9fc;color:var(--purple);border:1px solid #d9c6f2;border-radius:7px;padding:2px 7px;font-weight:700;font-size:11px;margin:1px 3px 1px 0;white-space:nowrap}
 .fcbuy.b2{background:#eef4ff;color:#2f5da8;border-color:#cfe0f5}
 .fcfilt{cursor:pointer}.plantb .need .z,.plantb span.z{color:var(--faint)}
+/* ---- Policies page ---- */
+.polcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0;background:#fff;box-shadow:0 1px 4px rgba(23,52,78,.05)}
+.polhd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.polname{font-size:15px;font-weight:800;color:#17344e;border:1px solid var(--line);border-radius:8px;padding:5px 10px;min-width:160px}
+.polname:focus{border-color:var(--blue);outline:none}
+.polcount{font-size:11px;font-weight:700;color:var(--purple);background:#f1e9fc;border:1px solid #d9c6f2;border-radius:6px;padding:2px 8px}
+.polrm{margin-left:auto;padding:5px 11px;color:var(--red);border-color:#f0b6b6}
+.polgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:10px}
+.polf{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:var(--dim)}
+.polf input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:14px;font-weight:700;color:var(--ink);width:100%}
+.polf input:focus{border-color:var(--blue);outline:none}
+.pollbl{font-size:11px;font-weight:700;color:var(--dim);margin-bottom:4px}
+.poltext{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-family:var(--mono);font-size:13px;resize:vertical;box-sizing:border-box}
+.poltext:focus{border-color:var(--blue);outline:none}
+.mpolicy{margin-top:5px;font-size:11.5px;color:#5a6b80;background:#f6f8fb;border:1px solid #e3e9f1;border-radius:7px;padding:4px 9px;display:inline-block}
+.mpolicy b{color:var(--purple)}
 .ppfg{display:inline-block;background:#eef4fb;color:#2f5da8;border-radius:5px;padding:1px 6px;margin:1px 3px 1px 0;font-size:10.5px;font-weight:700}
 .ppfg.more{background:#eef2f6;color:var(--dim)}
 .pp-red{color:var(--red)}.pp-amb{color:#b06d00}.pp-grn{color:#177245}
@@ -617,6 +633,7 @@ tr.ltorow td.stick.c1,tr.ltorow td:first-child{box-shadow:inset 3px 0 0 var(--pu
     <button class="ptab" id="tabTrack">📸 Daily Tracker</button>
     <button class="ptab" id="tabFcst">🔮 Forecast</button>
     <button class="ptab" id="tabProd">🏭 Production Plan</button>
+    <button class="ptab" id="tabPolicy">⚙️ Policies</button>
     <button class="ptab" id="tabCap">⚖️ Capacity Plan</button>
   </nav>
   <div class="sb-lbl">Export</div>
@@ -663,6 +680,8 @@ tr.ltorow td.stick.c1,tr.ltorow td:first-child{box-shadow:inset 3px 0 0 var(--pu
     <div class="set" title="Global UPPER bound — never build more than this many days of supply unless overridden">Max days <input id="setMaxDOS" type="number" value="60">d</div>
     <div class="set" title="Minimum order per can — every order is at least this, rounded up to whole pallets (big 1,900 · small 2,280)">MOQ (minimum) <input id="setMOQ" type="number" value="15200"></div>
     <div class="set">Min swap qty <input id="setMinSwap" type="number" value="20000"></div>
+    <div class="set" title="DSC swap rule #1 — no swaps inside this many days (10-day production lead + 2 transit)">⇄ No-swap window <input id="setSwapWin" type="number" value="12">d</div>
+    <div class="set" title="DSC swap rule #5 — the quantity pulled IN may exceed the donor PO by at most this many pallets. Sacrificing the other way (give up more than you pull) is always allowed.">⇄ Swap qty tol <input id="setSwapTol" type="number" value="8">pallets</div>
     <div class="set">Ignore POs overdue &gt; <input id="setStale" type="number" value="3">d</div>
     <div class="set">Ignore PO remnants &lt; <input id="setRemnant" type="number" value="5000"></div>
     <div class="set" title="DSC has committed the POs due on or before this date — they are frozen and won't be offered for swaps or adjustments">🔒 DSC locked thru <input id="setDscLock" type="date" style="width:140px"></div>
@@ -691,6 +710,14 @@ tr.ltorow td.stick.c1,tr.ltorow td:first-child{box-shadow:inset 3px 0 0 var(--pu
     <input type="file" id="comanImpFile" accept=".xlsx,.xls,.xlsm" style="display:none">
     <div class="set" id="comanCount" style="color:var(--faint)"></div>
   </div>
+  <div class="bar swaprules">
+    <div class="set" style="font-weight:800;color:var(--ink)">⇄ DSC swap rules</div>
+    <div class="set" style="color:var(--faint)">same size · ≥ no-swap window · not floor · not flexed-in · similar qty · job-for-job (1:1)</div>
+    <div class="set" style="font-weight:700;color:var(--ink);margin-left:8px">Flexed-in cans (excluded):</div>
+    <input id="flexList" class="floorinput" title="Comma-separated can codes that were flexed in — DSC won't swap these" value="" placeholder="e.g. 12001, 12002">
+    <button class="btn ghost" id="btnFlexApply" style="padding:7px 13px">Apply</button>
+    <div class="set" id="flexCount" style="color:var(--faint)"></div>
+  </div>
 
   <div class="pgrid" id="pgrid"></div>
   <div id="planner" style="display:none"></div>
@@ -698,6 +725,7 @@ tr.ltorow td.stick.c1,tr.ltorow td:first-child{box-shadow:inset 3px 0 0 var(--pu
   <div id="coverage" style="display:none"></div>
   <div id="tracker" style="display:none"></div>
   <div id="forecast" style="display:none"></div>
+  <div id="policies" style="display:none"></div>
   <div id="prodplan" style="display:none"></div>
   <div id="capacity" style="display:none"></div>
   <div class="empty" id="empty"><b>Waiting for data</b>Upload Stock on Hand and Live PA to light up the board.</div>
@@ -744,7 +772,7 @@ tr.ltorow td.stick.c1,tr.ltorow td:first-child{box-shadow:inset 3px 0 0 var(--pu
     <div class="rule"><b>What it shows:</b> for one can — supply on hand, days of supply, DSC floor stock, and three headline coverage points (<b>Firm PA covered</b>, <b>Production plan covered</b>, <b>Forecast days of supply</b>), followed by the plain-English "why," key dates, demand drivers, open POs, and the firm PA sales orders behind it. <b>How we use it:</b> the single source of truth for one can when someone asks "why are we ordering this / when do we run out."</div>
 
     <h3>🔄 Item transitions (old can → new can)</h3>
-    <div class="rule"><b>Rolling transition:</b> the <b>old can is consumed first</b> — all demand for the item is shown on the old can until its on-hand (plus any already-placed POs) runs to zero, and only the remainder then moves to the new can, week by week. We <b>never place new POs for the old can</b> on a rolling transition — the goal is to run it down. Orders are placed on the <b>new can</b> only for the demand that spills past the old can's depletion, timed with the normal lead time. <b>Hard cut / transition complete:</b> all demand moves to the new can immediately. A transition only becomes active once it's marked <b>Ready for order</b>; until then everything stays on the old can.</div>
+    <div class="rule"><b>Rolling transition:</b> the <b>old can is consumed first</b> — all demand for the item is shown on the old can until its on-hand (plus any already-placed POs) runs to zero, and only the remainder then moves to the new can, week by week. We <b>never place new POs for the old can</b> on a rolling transition — the goal is to run it down. Orders are placed on the <b>new can</b> only for the demand that spills past the old can's depletion, timed with the normal lead time. <b>Hard cut / transition complete:</b> all demand moves to the new can immediately. The old can is <b>always depleted first on a rolling transition — even before the new can is marked "Ready for order."</b> The Ready flag only governs placing orders on the new can (which only happens once the old can is run down anyway); it never leaves demand sitting on the new can while the old can still has stock.</div>
 
     <h3 style="margin-top:18px;padding-top:6px;border-top:2px solid #e3e9f1">📖 Worked example — one can, every number explained</h3>
     <div class="rule" style="background:#fbf7ef;border-color:#ecdfba">This walks through a single real can from today's data, step by step, so a new team member can see exactly where each number comes from and how it turns into an order decision. Load your files and the example uses a live can; otherwise it shows an illustration.</div>
@@ -781,7 +809,17 @@ tr.ltorow td.stick.c1,tr.ltorow td:first-child{box-shadow:inset 3px 0 0 var(--pu
     <h3>Stale backorders</h3>
     <div class="rule">Two kinds of PO lines are ignored entirely — excluded from incoming supply, coverage, run-out math and swaps: <b>(1) stale backorders</b>, overdue by more than <code>Ignore POs overdue</code> days (default 3); and <b>(2) short-ship remnants</b>, lines with less than <code>Ignore PO remnants</code> cans left open (default 5,000) — the small leftovers when DSC delivers slightly under the ordered quantity. Both appear in the "Ignored POs" box with a reason, ready to be verified and cleared from the system.</div>
     <h3>Swap rules</h3>
-    <div class="rule">A swap is only suggested when it is <b>meaningful</b>:</div>
+    <div class="rule" style="background:#f3f0fb;border-color:#d8cdf0"><b>DSC's six swap rules — every recommended swap must satisfy all of them:</b>
+      <ol style="margin:6px 0 0 18px;padding:0">
+        <li><b>No swaps inside 12 days</b> — DSC needs a 10-day production lead + 2 transit days. The donor PO must be at least the <code>No-swap window</code> (default 12d) out.</li>
+        <li><b>Same size only</b> — a 13oz-big donor can only cover a 13oz-big need, a 6oz-small only a 6oz-small. Never across sizes.</li>
+        <li><b>No floor-stock items</b> — floor-stock cans (quick-turn) are never swapped, on either side.</li>
+        <li><b>No flexed-in items</b> — cans listed in the <code>Flexed-in cans</code> box are excluded from swaps.</li>
+        <li><b>Similar quantities</b> — the amount pulled <b>in</b> may exceed the donor PO by at most <code>Swap qty tol</code> (~8 pallets). Sacrificing the other way (give up more than you pull, e.g. 95,000 out to pull 15,200 in) is always fine; pulling in far more than you give up (15,200 out for 95,000 in) is not.</li>
+        <li><b>Job for job (1:1)</b> — one donor PO for one order. The tool never splits one donor across two needs. Pushing two jobs to pull one in is a manual, case-by-case call with DSC.</li>
+      </ol>
+      A can that needs cans but has no rule-compliant donor is placed as a <b>new PO</b> instead, with the reason shown.</div>
+    <div class="rule">On top of the DSC rules, a swap is only <b>proposed</b> when it is meaningful:</div>
     <ul>
       <li>The urgent can must have a <b>firm PA shortfall</b> — forecast-only demand never takes a swap slot.</li>
       <li>The urgent need must be ≥ <code>Min swap qty</code> (default 20,000 cans) — no swapping for 2–3k-can needs.</li>
@@ -869,7 +907,7 @@ function matchRow(x,q){
 
 const state={
   stock:null,pa:null,po:null,count:null,
-  forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,ltoFg:new Set(EMB.ltoFg||[]),ltoOnly:false,ltoSplit:50,
+  forecast:EMB.forecast,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,ltoFg:new Set(EMB.ltoFg||[]),ltoOnly:false,ltoSplit:50,policies:[],flexed:new Set(),
   files:{stock:null,pa:null,po:null,count:null,dsc:null,swapdec:null,expdec:null,trans:null,prodplan:null,forecast:'built-in',bom:'built-in'},count:null,
   rows:[],q:'',sizeFilter:'all',showAll:false,expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',ppMode:'wk',ppView:'grid',ppTarget:2,covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,floorMin:7,floorMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},transitions:[],prodPlan:null,prodPlanDesc:{},swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
@@ -1174,12 +1212,15 @@ function parseTransitions(wb){
   }
   return null;
 }
-// Transition mode: 'off' = not active (stay on old can) · 'hard' = move all demand to new can now (hard cut or transition complete) · 'roll' = deplete old can first, then spill remainder to new can.
+// Transition mode: 'off' = invalid/no pair · 'hard' = all demand on new can now (hard cut switched over, or complete) · 'roll' = deplete the OLD can first, then the remainder on the new can.
+// A rolling transition ALWAYS depletes the old can first — even before it is "ready to order" the new can. The ready flag only
+// governs ordering the new can (which naturally happens only once the old can is depleted); it must never leave demand stranded
+// on the new can while the old can still has stock to consume.
 function transMode(tr){
   if(!tr||!tr.oldCan||!tr.newCan||tr.oldCan===tr.newCan)return 'off';
-  if(tr.complete)return 'hard';       // transition done — new can owns everything
-  if(!tr.ready)return 'off';          // not ready to order the new can yet — everything stays on the old can
-  return tr.hardcut?'hard':'roll';
+  if(tr.complete)return 'hard';            // transition done — new can owns everything
+  if(tr.hardcut&&tr.ready)return 'hard';   // hard cut that has switched over — demand on the new can now
+  return 'roll';                           // rolling, or pre-switch — consume the old can's on-hand first, then the new can
 }
 function canOH(c){const cnt=state.count&&state.count[c];const adj=cnt?!!cnt.adjusted:false;const phys=!!cnt&&!!cnt.counted&&!adj;return phys?cnt.phys:((state.stock[c]&&state.stock[c].onHand)||0);}
 function canArr(c,T,H){const a=new Float64Array(H);const ps=(state.po&&state.po[c])||[];for(const p of ps){if(!p.date)continue;let di=Math.round((p.date-T)/86400000);if(di<0)di=0;if(di<H)a[di]+=p.qty||0;}return a;}
@@ -1423,6 +1464,18 @@ function comboComps(fg){
   return out.length?out:null;
 }
 function dim(y,p){return new Date(y,p,0).getDate();}
+// ---- DSC swap rules — a donor PO (s) can only be swapped to a short can (u) if ALL six rules pass ----
+function swapRuleCheck(s,u,T){
+  const swapWin=+($('#setSwapWin')||{}).value||12, tolPal=+($('#setSwapTol')||{}).value||8;
+  const di=s.p.date?Math.round((s.p.date-T)/DAY):0;
+  if(di<swapWin)return {ok:false,why:`donor PO is inside the ${swapWin}-day no-swap window`};          // 1. 10-day DSC lead + 2 transit
+  if(s.size&&u.size&&s.size!==u.size)return {ok:false,why:'different can size — must be like-for-like'}; // 2. same size
+  if(s.floor||u.floor)return {ok:false,why:'floor-stock item — not swappable'};                        // 3. no floor stock
+  if(state.flexed&&(state.flexed.has(s.code)||state.flexed.has(u.code)))return {ok:false,why:'flexed-in item — not swappable'}; // 4. no flexed-in
+  const pal=u.pallet||s.pallet||1900, tol=tolPal*pal;                                                   // 5. similar qty (pull-in ≤ donor + tol; sacrificing the other way is fine)
+  if(u.suggest>s.p.qty+tol)return {ok:false,why:`quantity mismatch — pulling in ${Math.round(u.suggest).toLocaleString()} against a ${Math.round(s.p.qty).toLocaleString()} donor (>${tolPal} pallets apart)`};
+  return {ok:true};                                                                                     // 6. job-for-job (1:1) enforced by one-donor-one-recipient claiming
+}
 function compute(){
   const T=today();
   const LTdef=+$('#setLT').value||28,TRUCK=+$('#setTruck').value||95000,COV=+$('#setCov').value||45,BUF=+$('#setBuf').value||7,FLT=+$('#setFLT').value||7,MOQ=+$('#setMOQ').value||5000,MINSWAP=+$('#setMinSwap').value||20000,STALE=+$('#setStale').value||3,REMNANT=+$('#setRemnant').value||5000;
@@ -1444,6 +1497,7 @@ function compute(){
     // and capacity/overproduction). Forecast fills periods/weeks the plan doesn't reach. PA is the firm portion of the build.
     const rate=new Float64Array(H),paRate=new Float64Array(H),planRate=new Float64Array(H),fcRate=new Float64Array(H);
     let hasFc=false,hasPA=false,hasPlan=false,lastEo=-1,lastFcR=0;
+    const ltoFG=isLTOfg(fg);   // LTO finished goods are ordered on firm PA + production plan ONLY — forecast never drives their order callouts (it's still shown on the Forecast page). This stops LTOs from flagging "order now" when the 13-week plan already covers them.
     const pw=(state.prodPlan&&state.prodPlan[fg]&&state.prodPlan[fg].weekly)?state.prodPlan[fg].weekly.filter(w=>w.date&&addD(w.date,6)>=T):[];
     for(let pi=0;pi<FISCAL26.length;pi++){
       const P=FISCAL26[pi];if(P.ed<T)continue;
@@ -1453,10 +1507,10 @@ function compute(){
       const periodFcRaw=f?(+f[P.p-1]||0):0;
       let planP=0;for(const w of pw){if(w.date>=P.sd&&w.date<=P.ed)planP+=w.qty||0;}     // EXACT plan cases this period (weekly)
       let periodPA=0;for(const l of lines){if(l.date&&l.date>=P.sd&&l.date<=P.ed)periodPA+=l.qty;}
-      if(periodFcRaw>0)hasFc=true;if(planP>0)hasPlan=true;
+      if(periodFcRaw>0&&!ltoFG)hasFc=true;if(planP>0)hasPlan=true;
       const base=Math.max(planP,periodPA);                                    // the committed build (plan, or firm PA if it exceeds the plan)
       const planNet=Math.max(0,planP-periodPA);                               // plan build beyond the firm PA it already covers
-      const fcBeyond=Math.max(0,periodFcRaw-base);                            // forecast ONLY beyond the committed build (no double-count)
+      const fcBeyond=ltoFG?0:Math.max(0,periodFcRaw-base);                    // forecast ONLY beyond the committed build (no double-count) — ZERO for LTO FGs so forecast never drives their orders
       // plan → time-phased by its OWN weekly columns (matches the Consumption Plan page), scaled to net out firm PA
       if(planP>0){const scale=planNet/planP;for(const w of pw){if(w.date>=P.sd&&w.date<=P.ed){const wd=Math.round((w.date-T)/DAY),r=(w.qty||0)/7*scale;for(let dd=wd;dd<wd+7;dd++){const idx=Math.max(0,dd);if(idx<H)planRate[idx]+=r;}}}}  // full week conserved (elapsed days pile onto today)
       const fr=fullDays>0?fcBeyond/fullDays:0;for(let dd=d0;dd<=d1;dd++)fcRate[dd]+=fr;   // forecast-beyond spread across the period
@@ -1559,6 +1613,9 @@ function compute(){
     canComan[can]=canComanCusts[can].length>0;
   }
   const out=[];
+  // ---- custom Policies: per-can overrides of lead / buffer / cover / min / ideal / max. First policy that lists a can wins. ----
+  const canPol={};
+  for(const p of (state.policies||[])){for(const c of (p.cans||[])){const cc=String(c).trim();if(cc&&canPol[cc]==null)canPol[cc]=p;}}
   const allCans=new Set([...Object.keys(state.stock),...Object.keys(dem)]);
   for(const code of allCans){
     const st=state.stock[code]||{code,desc:state.canDesc[code]||('Can '+code),onHand:0,lt:null,supplier:'DS CONTAINERS',ns:'',ss:0,rc:0,onOrderSys:0};
@@ -1569,7 +1626,10 @@ function compute(){
     const counted=usePhys;
     const onHand=usePhys?cnt.phys:st.onHand;         // adjusted or uncounted -> use the reconciled NetStock on-hand
     const floor=state.floor.has(code);
-    const ltBase=st.lt||LTdef;
+    const pol=canPol[code]||null;                                   // custom policy for this can, if any
+    const BUFc=(pol&&pol.buf!=null)?pol.buf:BUF;                    // policy production buffer, else global
+    const COVc=(pol&&pol.cov!=null)?pol.cov:COV;                    // policy cover window, else global
+    const ltBase=(pol&&pol.lt!=null)?pol.lt:(st.lt||LTdef);         // policy lead time, else per-can/global
     const dscOH=state.dsc?state.dsc[code]:null;
     const dscTot=state.dscTot?state.dscTot[code]:null;
     const d=dem[code]||new Float64Array(H);
@@ -1604,11 +1664,12 @@ function compute(){
     let custMin=null,custMax=null,custIdeal=null;
     for(const c of (canCusts[code]||[])){const cb=state.custBand[c];if(cb){if(cb.min!=null)custMin=custMin==null?cb.min:Math.max(custMin,cb.min);if(cb.max!=null)custMax=custMax==null?cb.max:Math.min(custMax,cb.max);if(cb.ideal!=null)custIdeal=custIdeal==null?cb.ideal:Math.min(custIdeal,cb.ideal);}}
     const defMin=floor?state.floorMin:(coman?state.comanMin:state.gMinDOS),defMax=floor?state.floorMax:(coman?state.comanMax:state.gMaxDOS),defIdeal=floor?state.floorMax:(coman?state.comanMax:state.gIdealDOS);
-    const bMin=ov.min!=null?ov.min:(custMin!=null?custMin:defMin);
-    const bMax=ov.max!=null?ov.max:(custMax!=null?custMax:defMax);
-    let bIdeal=ov.ideal!=null?ov.ideal:(custIdeal!=null?custIdeal:defIdeal);
+    const polMin=(pol&&pol.min!=null)?pol.min:null,polMax=(pol&&pol.max!=null)?pol.max:null,polIdeal=(pol&&pol.ideal!=null)?pol.ideal:null;
+    const bMin=polMin!=null?polMin:(ov.min!=null?ov.min:(custMin!=null?custMin:defMin));
+    const bMax=polMax!=null?polMax:(ov.max!=null?ov.max:(custMax!=null?custMax:defMax));
+    let bIdeal=polIdeal!=null?polIdeal:(ov.ideal!=null?ov.ideal:(custIdeal!=null?custIdeal:defIdeal));
     bIdeal=Math.min(Math.max(bIdeal,bMin),bMax); // keep ideal inside [min,max]
-    const bandSrc=(ov.min!=null||ov.max!=null||ov.ideal!=null)?'can override':((custMin!=null||custMax!=null||custIdeal!=null)?'customer':(floor?'floor-stock band':(coman?'co-man default':'global default')));
+    const bandSrc=pol?('policy: '+pol.name):((ov.min!=null||ov.max!=null||ov.ideal!=null)?'can override':((custMin!=null||custMax!=null||custIdeal!=null)?'customer':(floor?'floor-stock band':(coman?'co-man default':'global default'))));
     // SAFETY FLOOR = Min days of supply (bMin × daily). Run-out = the day on-hand would fall to this floor — NOT zero —
     // so a PO timed to it lands while you still hold the Min days on hand. You never dip below the Min-days band.
     const safetyCans=daily>0?bMin*daily:0;
@@ -1616,7 +1677,7 @@ function compute(){
     for(let i=0;i<H;i++){bal0-=d[i];if(bal0<safetyCans){needDay=i;break;}}
     let bal=onHand,runout=null;
     for(let i=0;i<H;i++){bal+=arrivals[i]-d[i];if(bal<safetyCans&&runout==null)runout=i;}
-    const covWin=Math.max(1,Math.min(COV,bIdeal)); // order up to the IDEAL days of supply, capped by cover
+    const covWin=Math.max(1,Math.min(COVc,bIdeal)); // order up to the IDEAL days of supply, capped by cover
     // raw shortfall from runout for covWin days (used for suggest AND quick-pull check)
     let rawNeed=0;
     if(runout!=null){
@@ -1624,7 +1685,7 @@ function compute(){
       let balAt=onHand;for(let i=0;i<runout;i++)balAt+=arrivals[i]-d[i];
       rawNeed=Math.max(0,rawNeed-Math.max(0,balAt));
       // never order beyond the MAX band: cap so the position when it lands stays ≤ bMax days of supply
-      if(daily>0){const landPt=Math.max(0,runout-BUF);let balLand=onHand;for(let i=0;i<landPt;i++)balLand+=arrivals[i]-d[i];const capMax=Math.max(0,bMax*daily-Math.max(0,balLand));rawNeed=Math.min(rawNeed,capMax);}
+      if(daily>0){const landPt=Math.max(0,runout-BUFc);let balLand=onHand;for(let i=0;i<landPt;i++)balLand+=arrivals[i]-d[i];const capMax=Math.max(0,bMax*daily-Math.max(0,balLand));rawNeed=Math.min(rawNeed,capMax);}
     }
     const dscAvail=dscOH!=null?dscOH:(dscTot!=null?dscTot:null);
     const quickPull=!floor&&dscAvail!=null&&rawNeed>0&&dscAvail>=rawNeed;
@@ -1633,8 +1694,8 @@ function compute(){
     const inStock=!!state.stock[code];
     const active=totDem>1||onHand>0||incoming>0||(state.showAll&&inStock);
     const dos=daily>0?onHand/daily:(totDem>1?0:Infinity);
-    const needByOH=needDay!=null?Math.max(0,needDay-BUF):null;   // run dry from ON-HAND minus buffer (in-house-by target)
-    const needBy=runout!=null?Math.max(0,runout-BUF):null;        // run dry INCLUDING open POs — the real order-timing date
+    const needByOH=needDay!=null?Math.max(0,needDay-BUFc):null;   // run dry from ON-HAND minus buffer (in-house-by target)
+    const needBy=runout!=null?Math.max(0,runout-BUFc):null;        // run dry INCLUDING open POs — the real order-timing date
     const orderBy=needBy!=null?needBy-lt:null;
     const firstArr=pos.length?Math.max(0,Math.round(((pos[0].date||T)-T)/DAY)):null;
     let expedite=null,expLocked=false;
@@ -1704,7 +1765,8 @@ function compute(){
       daily,dos,needDay,needBy,orderBy,runout,firstArr,incoming,overduePO,pos,suggest,trucks,lt,cls,pr,varFlag,isLTO,ltoFgs,
       expedite,expLocked,active,totDem,fgTop,fgFull,paFirst,paOnly,onProdPlan,ppWeekly,ppCoverDays,ppFgs,ppTotal,floor,dscOH,dscTot,quickPull,custMatch,stalePos,staleQty,drivers:fgAll,layers,
       demArr:d,arrArr:arrivals,
-      coman,comanCusts:canComanCusts[code]||[],allCusts:canCusts[code]||[],cMin:bMin,cMax:bMax,bMin,bMax,bIdeal,bandSrc,bandMinCans,bandMaxCans,bandStatus,covWin});
+      coman,comanCusts:canComanCusts[code]||[],allCusts:canCusts[code]||[],cMin:bMin,cMax:bMax,bMin,bMax,bIdeal,bandSrc,bandMinCans,bandMaxCans,bandStatus,covWin,
+      policy:pol?pol.name:null,effLT:ltBase,effBUF:BUFc,effCOV:COVc});
   }
   out.sort((a,b)=>a.pr-b.pr||((a.needBy??9999)-(b.needBy??9999))||b.daily-a.daily);
   const stale=[];
@@ -1717,10 +1779,10 @@ function compute(){
     if(!x.pos.length||!x.active)continue;
     if(['out','exp','now','wk'].includes(x.cls))continue;
     if(x.needDay==null){
-      x.pos.forEach(p=>swaps.push({code:x.code,desc:x.desc,fgTop:x.fgTop,dos:x.dos,onHand:x.onHand,daily:x.daily,p,early:9999,reason:'fully covered — no production need for this can in the next 180 days; this PO slot can be given up'}));
+      x.pos.forEach(p=>swaps.push({code:x.code,desc:x.desc,fgTop:x.fgTop,dos:x.dos,onHand:x.onHand,daily:x.daily,size:x.size,floor:x.floor,pallet:x.pallet,p,early:9999,reason:'fully covered — no production need for this can in the next 180 days; this PO slot can be given up'}));
     }else if(x.firstArr!=null&&x.needBy!=null&&x.firstArr<=x.needBy-14){
       const e=x.needBy-x.firstArr;
-      swaps.push({code:x.code,desc:x.desc,fgTop:x.fgTop,dos:x.dos,onHand:x.onHand,daily:x.daily,p:x.pos[0],early:e,reason:'arrives '+e+' days before its need-by ('+dstr(addD(T,x.needBy))+') — can be pushed out or swapped'});
+      swaps.push({code:x.code,desc:x.desc,fgTop:x.fgTop,dos:x.dos,onHand:x.onHand,daily:x.daily,size:x.size,floor:x.floor,pallet:x.pallet,p:x.pos[0],early:e,reason:'arrives '+e+' days before its need-by ('+dstr(addD(T,x.needBy))+') — can be pushed out or swapped'});
     }
   }
   swaps.sort((a,b)=>((a.p.date?a.p.date.getTime():0)-(b.p.date?b.p.date.getTime():0)));
@@ -1762,10 +1824,12 @@ function compute(){
       if(s.p.qty<MINSWAP)continue;
       if(DEC.pair[key+'|'+u.code]==='no'||DEC.pair[key]==='no'){declined=true;continue;}
       const di=s.p.date?Math.round((s.p.date-T)/DAY):0;
-      if(u.needBy==null||di<=u.needBy){u.swapWith=s;claimed.add(key);break;}
+      const rc=swapRuleCheck(s,u,T);if(!rc.ok){u.__swapRuleMiss=rc.why;continue;}   // must satisfy all DSC swap rules
+      if(u.needBy==null||di<=u.needBy){u.swapWith=s;u.__swapRuleMiss=null;claimed.add(key);break;}
     }
     if(u.swapWith&&declined){u.swapAlt=true;} // DSC said NO earlier — this is a re-proposed alternative donor PO
     if(!u.swapWith&&declined){u.swapDeclined=true;u.swapSkip='DSC declined the proposed swap and no other donor PO qualifies — need moved into the new-PO plan';}
+    else if(!u.swapWith&&u.__swapRuleMiss){u.swapSkip='no DSC-rule-compliant donor PO ('+u.__swapRuleMiss+') — placed as a new order';}
   }
   state.swapDeclinedCount=queue.filter(u=>u.swapDeclined).length;
   // ---- PO builder: priority-ranked, whole-PALLET lines, size-separated trucks, dated ----
@@ -3199,18 +3263,107 @@ function exportForecast(dd,periods){
     const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Forecast');XLSX.writeFile(wb,'Forecast_Coverage_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Forecast exported');
   }catch(e){toast('Export failed');}
 }
+/* ============================================================================
+   POLICIES PAGE — named custom rule sets. Each policy overrides lead / buffer /
+   cover / min / ideal / max days of supply for a user-supplied list of cans.
+   Blank fields inherit the global default. First policy that lists a can wins.
+   ============================================================================ */
+function polGlobals(){return {lt:+($('#setLT')||{}).value||28,buf:+($('#setBuf')||{}).value||7,cov:+($('#setCov')||{}).value||45,min:+($('#setMinDOS')||{}).value||14,ideal:+($('#setIdealDOS')||{}).value||45,max:+($('#setMaxDOS')||{}).value||60};}
+// Policies persist in this browser at this URL, so once set they stay LOCKED across reloads — no need to re-enter them each visit.
+function savePolicies(){try{localStorage.setItem('canDash_policies',JSON.stringify(state.policies||[]));}catch(e){}}
+function loadPolicies(){try{const s=localStorage.getItem('canDash_policies');if(s){const a=JSON.parse(s);if(Array.isArray(a))state.policies=a;}}catch(e){}}
+// Build policies from an uploaded Excel. Columns (any order, case-insensitive): Can / Item code · Lead time · Prod buffer · Cover · Min days · Ideal days · Max days · optional Policy name.
+// Rows are grouped into policies by the Policy-name column if present, otherwise by identical settings, so cans sharing the same rule become one policy.
+function parsePolicyFile(wb){
+  for(const sn of wb.SheetNames){
+    const r=rws(wb.Sheets[sn]);if(!r.length||!r[0])continue;
+    const h=(r[0]||[]).map(x=>String(x||'').trim().toLowerCase());
+    const iCan=h.findIndex(x=>x.includes('can')||x.includes('item')||x.includes('code'));
+    if(iCan<0)continue;
+    const iName=h.findIndex(x=>x.includes('policy')||x.includes('name')||x.includes('group'));
+    const iLt=h.findIndex(x=>x.includes('lead'));
+    const iBuf=h.findIndex(x=>x.includes('buffer')||x.includes('buf'));
+    const iCov=h.findIndex(x=>x.includes('cover')||x.includes('cov'));
+    const iMin=h.findIndex(x=>x.includes('min'));
+    const iIdeal=h.findIndex(x=>x.includes('ideal'));
+    const iMax=h.findIndex(x=>x.includes('max'));
+    const num=v=>{const s=String(v==null?'':v).trim();if(s==='')return null;const n=+s;return isNaN(n)?null:n;};
+    const norm=c=>{c=String(c==null?'':c).trim();const m=c.match(/\d{4,6}/);return m?m[0]:'';};
+    const rows=[];
+    for(let i=1;i<r.length;i++){const row=r[i];if(!row)continue;const can=norm(row[iCan]);if(!can)continue;
+      rows.push({can,name:iName>=0?String(row[iName]||'').trim():'',lt:iLt>=0?num(row[iLt]):null,buf:iBuf>=0?num(row[iBuf]):null,cov:iCov>=0?num(row[iCov]):null,min:iMin>=0?num(row[iMin]):null,ideal:iIdeal>=0?num(row[iIdeal]):null,max:iMax>=0?num(row[iMax]):null});}
+    if(!rows.length)continue;
+    const groups=new Map();
+    for(const r2 of rows){const key=r2.name?('n:'+r2.name.toLowerCase()):('s:'+[r2.lt,r2.buf,r2.cov,r2.min,r2.ideal,r2.max].join('|'));
+      if(!groups.has(key))groups.set(key,{name:r2.name||null,lt:r2.lt,buf:r2.buf,cov:r2.cov,min:r2.min,ideal:r2.ideal,max:r2.max,cans:[]});
+      groups.get(key).cans.push(r2.can);}
+    let n=0;const out=[];for(const g of groups.values()){n++;out.push({name:g.name||('Policy '+n),cans:[...new Set(g.cans)],lt:g.lt,buf:g.buf,cov:g.cov,min:g.min,ideal:g.ideal,max:g.max});}
+    return out;
+  }
+  return null;
+}
+function importPolicies(file){
+  const rd=new FileReader();
+  rd.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true,sheetRows:MAX_ROWS+2});
+    const pols=parsePolicyFile(wb);
+    if(!pols||!pols.length){toast('No policy rows found — need a Can column plus at least one of Lead/Buffer/Cover/Min/Ideal/Max');return;}
+    const totCans=pols.reduce((a,p)=>a+p.cans.length,0);
+    state.policies=pols;savePolicies();compute();
+    toast(`Loaded ${pols.length} polic${pols.length===1?'y':'ies'} covering ${totCans} cans`);
+  }catch(err){toast('Could not read that policy file');}};
+  rd.readAsArrayBuffer(file);
+}
+function policyTemplate(){
+  const rows=[
+    {'Policy name':'Policy 1','Can':'12001','Lead time':28,'Prod buffer':7,'Cover':45,'Min days':14,'Ideal days':45,'Max days':60},
+    {'Policy name':'Policy 1','Can':'12002','Lead time':28,'Prod buffer':7,'Cover':45,'Min days':14,'Ideal days':45,'Max days':60},
+    {'Policy name':'Policy 2','Can':'12444','Lead time':14,'Prod buffer':3,'Cover':30,'Min days':20,'Ideal days':'','Max days':''}
+  ];
+  const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:14},{wch:10},{wch:11},{wch:12},{wch:9},{wch:10},{wch:11},{wch:10}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Policies');XLSX.writeFile(wb,'Policy_template.xlsx');toast('Template downloaded — fill it and upload');
+}
+function renderPolicies(){
+  const el=$('#policies');const g=polGlobals();const pols=state.policies||[];
+  const fields=[['lt','Lead time','d'],['buf','Prod. buffer','d'],['cov','Cover','d'],['min','Min days','d'],['ideal','Ideal days','d'],['max','Max days','d']];
+  const cards=pols.map((p,i)=>{
+    const cans=p.cans||[];
+    return `<div class="polcard" data-i="${i}">
+      <div class="polhd"><input class="polname" data-i="${i}" value="${(p.name||('Policy '+(i+1))).replace(/"/g,'&quot;')}"><span class="polcount">${cans.length} can${cans.length===1?'':'s'}</span><button class="btn ghost polrm" data-i="${i}">✕ remove</button></div>
+      <div class="polgrid">${fields.map(([k,lbl,u])=>`<label class="polf"><span>${lbl} (${u})</span><input type="number" step="any" min="0" class="polnum" data-i="${i}" data-k="${k}" value="${p[k]!=null?p[k]:''}" placeholder="${g[k]} (default)"></label>`).join('')}</div>
+      <div class="pollbl">Cans this policy applies to — paste or type the can codes, separated by comma, space, or new line</div>
+      <textarea class="poltext" data-i="${i}" rows="3" placeholder="e.g. 12001, 12002, 12444">${cans.join(', ')}</textarea>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div class="planbar"><span class="now"><b>Policies</b> — custom ordering rules for specific cans. Each policy overrides the global settings for the cans you list; leave a box blank to keep the global default (shown in grey). A can can only belong to one policy — if it's listed in more than one, the first policy wins.</span>
+    <button class="btn ghost" id="polTpl">⬇ Template</button>
+    <button class="btn ghost" id="polUp">⬆ Upload policy file</button>
+    <input type="file" id="polFile" accept=".xlsx,.xls,.xlsm,.csv" style="display:none">
+    <button class="btn" id="polAdd">＋ Add policy</button></div>
+    <div class="secnote">Current global defaults: lead <b>${g.lt}d</b> · buffer <b>${g.buf}d</b> · cover <b>${g.cov}d</b> · min <b>${g.min}d</b> · ideal <b>${g.ideal}d</b> · max <b>${g.max}d</b>. Changes take effect as soon as you click out of a box, and are <b>saved in this browser</b> — your policies stay locked every time you open this link. The <b>Upload policy file</b> option builds policies from an Excel (columns: Can · Lead time · Prod buffer · Cover · Min days · Ideal days · Max days · optional Policy name) — grab the <b>Template</b> to see the format.</div>
+    ${cards||'<div class="emptyrow">No policies yet — click <b>＋ Add policy</b> to create Policy 1, or upload a policy Excel.</div>'}`;
+  $('#polAdd').onclick=()=>{state.policies.push({name:'Policy '+(state.policies.length+1),cans:[],lt:null,buf:null,cov:null,min:null,ideal:null,max:null});savePolicies();renderPolicies();};
+  $('#polTpl').onclick=policyTemplate;
+  $('#polUp').onclick=()=>$('#polFile').click();
+  const pf=$('#polFile');if(pf)pf.onchange=e=>{if(e.target.files[0])importPolicies(e.target.files[0]);e.target.value='';};
+  el.querySelectorAll('.polrm').forEach(b=>b.onclick=()=>{state.policies.splice(+b.dataset.i,1);savePolicies();compute();});
+  el.querySelectorAll('.polname').forEach(inp=>inp.onchange=()=>{const i=+inp.dataset.i;state.policies[i].name=inp.value.trim()||('Policy '+(i+1));savePolicies();compute();});
+  el.querySelectorAll('.polnum').forEach(inp=>inp.onchange=()=>{const v=inp.value.trim();state.policies[+inp.dataset.i][inp.dataset.k]=(v===''||isNaN(+v))?null:(+v);savePolicies();compute();});
+  el.querySelectorAll('.poltext').forEach(ta=>ta.onchange=()=>{state.policies[+ta.dataset.i].cans=ta.value.split(/[\s,;]+/).map(s=>s.trim()).filter(Boolean);savePolicies();compute();});
+  $('#hdMeta').textContent=`Policies · ${pols.length} defined · ${pols.reduce((a,p)=>a+(p.cans||[]).length,0)} cans mapped`;
+}
 function render(){
   chips();
   const T=today();
   // ---- page routing: board / consumption planner / order schedule ----
   const page=state.page||'board';
-  const onPlan=page==='plan',onOrders=page==='orders',onCover=page==='coverage',onTrack=page==='tracker',onFcst=page==='forecast',onProd=page==='prodplan',onCap=page==='capacity',onBoard=page==='board';
+  const onPlan=page==='plan',onOrders=page==='orders',onCover=page==='coverage',onTrack=page==='tracker',onFcst=page==='forecast',onPolicy=page==='policies',onProd=page==='prodplan',onCap=page==='capacity',onBoard=page==='board';
   $('#tabBoard').classList.toggle('on',onBoard);
   $('#tabPlan').classList.toggle('on',onPlan);
   $('#tabOrders').classList.toggle('on',onOrders);
   $('#tabCover').classList.toggle('on',onCover);
   $('#tabTrack').classList.toggle('on',onTrack);
   if($('#tabFcst'))$('#tabFcst').classList.toggle('on',onFcst);
+  if($('#tabPolicy'))$('#tabPolicy').classList.toggle('on',onPolicy);
   $('#tabProd').classList.toggle('on',onProd);
   $('#tabCap').classList.toggle('on',onCap);
   $('#planner').style.display=onPlan?'block':'none';
@@ -3218,11 +3371,13 @@ function render(){
   $('#coverage').style.display=onCover?'block':'none';
   $('#tracker').style.display=onTrack?'block':'none';
   $('#forecast').style.display=onFcst?'block':'none';
+  $('#policies').style.display=onPolicy?'block':'none';
   $('#prodplan').style.display=onProd?'block':'none';
   $('#capacity').style.display=onCap?'block':'none';
   $('#pgrid').style.display=onBoard?'flex':'none';
-  document.querySelectorAll('.floorbar,.comanbar').forEach(el=>el.style.display=onBoard?'flex':'none');
+  document.querySelectorAll('.floorbar,.comanbar,.swaprules').forEach(el=>el.style.display=onBoard?'flex':'none');
   if(onFcst){renderForecast();$('#empty').style.display=state.rows.length?'none':'block';if(!state.rows.length)$('#hdMeta').textContent='no data loaded';return;}
+  if(onPolicy){renderPolicies();$('#empty').style.display='none';return;}
   if(onCap){renderCapacity();$('#empty').style.display=state.rows.length?'none':'block';return;}
   if(onProd){renderProdPlan();$('#empty').style.display='none';return;}
   if(onTrack){renderTracker();$('#empty').style.display='none';return;}
@@ -3292,14 +3447,22 @@ function render(){
   const comanCansN=base.filter(x=>x.coman).length;
   const comanBelow=base.filter(x=>x.coman&&x.bandStatus==='below').length;
   const {plan:overPlanArr,totOver:totOverCans,donors:overDonors}=overorderPlan();
+  // ---- unique can codes we need to place POs for (distinct cans across the whole PO plan; different from "# of POs/trucks today") ----
+  const orderCanMap={};
+  for(const t of allPOs)for(const l of (t.lines||[]))orderCanMap[l.code]=(orderCanMap[l.code]||0)+l.qty;
+  const orderCanCodes=Object.keys(orderCanMap).filter(c=>!filterOn||baseCodes.has(c)).sort((a,b)=>orderCanMap[b]-orderCanMap[a]);
+  // ---- all LTO items (flagged from BOM UDF_LTO) — informational list, shown in purple ----
+  const ltoCansList=base.filter(x=>x.isLTO).sort((a,b)=>a.pr-b.pr||b.daily-a.daily);
   const strip=`<div class="strip">${custNote}
     <div class="stitem ${dscList.length?'s-red':''}" data-goto="dsc"><b>${dscList.length}</b>talk to DSC</div>
     <div class="stitem ${allPOsView.length?'s-org':''}" data-goto="orders"><b>${allPOsView.length}</b>POs to place</div>
+    <div class="stitem ${orderCanCodes.length?'s-org':''}" data-goto="ordercans" title="Distinct can item-codes you need to place a PO for (one can can span several trucks). Different from the number of POs/trucks."><b>${orderCanCodes.length}</b>unique cans to order</div>
     <div class="stitem ${swapActions.length?'s-grn':''}" data-goto="swaps"><b>${swapActions.length}</b>POs to swap</div>
     <div class="stitem ${overDonors.length?'s-org':''}" data-goto="overord"><b>${overDonors.length}</b>over-ordered</div>
     <div class="stitem ${comanBelow?'s-red':(comanCansN?'s-grn':'')}" data-goto="coman"><b>${comanCansN}</b>co-man cans${comanBelow?` · ${comanBelow} low`:''}</div>
     <div class="stitem ${expedites.length?'s-org':''}" data-goto="exped"><b>${expedites.length}</b>expedites</div>
     <div class="stitem ${outs.length?'s-red':''}" data-goto="status"><b>${outs.length}</b>stocked out</div>
+    <div class="stitem" data-goto="ltos" style="${ltoCansList.length?'border-color:#d9c6f2':''}"><b style="color:var(--purple)">${ltoCansList.length}</b>LTOs</div>
     <div class="stitem" data-goto="ignored"><b>${stale.length}</b>ignored POs</div>
   </div>`;
 
@@ -3347,7 +3510,8 @@ function render(){
   };
   const decLoaded=state.files.swapdec;
   const altCount=swapActions.filter(x=>x.swapAlt).length;
-  const swapsBody=`<div class="secnote"><b>Workflow:</b> 1) Export the <b>swap decision template</b> below · 2) DSC fills the <b>DSC Decision</b> column with YES or NO · 3) drop the file back here (✅ Swap Decisions tile or the big drop zone) — YES swaps lock in as <span class="confchip">✔ CONFIRMED</span>; NO swaps show below as <span class="decchip">✖ DECLINED</span>: if another covered PO qualifies it is re-proposed as an <span class="altchip">↻ ALTERNATIVE PO</span>, otherwise the need automatically becomes a new PO in the plan above (marked <span class="fromdec">⇄ swap declined by DSC → new PO</span>).${decLoaded?` <b style="color:var(--green)">Decisions loaded: ${decLoaded}</b>`:''}${altCount?` <b style="color:var(--blue)">${altCount} alternative PO${altCount>1?'s':''} re-proposed after a NO.</b>`:''}${declined.length?` <b style="color:var(--red)">${declined.length} declined with no alternative → moved to new POs.</b>`:''}</div>
+  const swapsBody=`<div class="secnote" style="background:#f3f0fb;border-color:#d8cdf0">Every swap below already passes <b>DSC's six rules</b>: ≥ ${(+($('#setSwapWin')||{}).value||12)}-day window · same size · not floor-stock · not flexed-in · similar quantity (within ${(+($('#setSwapTol')||{}).value||8)} pallets, sacrificing the other way is fine) · job-for-job 1:1. A need with no rule-compliant donor is placed as a new PO instead.</div>
+    <div class="secnote"><b>Workflow:</b> 1) Export the <b>swap decision template</b> below · 2) DSC fills the <b>DSC Decision</b> column with YES or NO · 3) drop the file back here (✅ Swap Decisions tile or the big drop zone) — YES swaps lock in as <span class="confchip">✔ CONFIRMED</span>; NO swaps show below as <span class="decchip">✖ DECLINED</span>: if another covered PO qualifies it is re-proposed as an <span class="altchip">↻ ALTERNATIVE PO</span>, otherwise the need automatically becomes a new PO in the plan above (marked <span class="fromdec">⇄ swap declined by DSC → new PO</span>).${decLoaded?` <b style="color:var(--green)">Decisions loaded: ${decLoaded}</b>`:''}${altCount?` <b style="color:var(--blue)">${altCount} alternative PO${altCount>1?'s':''} re-proposed after a NO.</b>`:''}${declined.length?` <b style="color:var(--red)">${declined.length} declined with no alternative → moved to new POs.</b>`:''}</div>
     <div class="cardcol">${(swapActions.map(swapCard).join('')+declined.map(declinedCard).join(''))||'<div class="emptyrow">No swaps needed today.</div>'}</div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       ${(swapActions.length||declined.length)?`<button class="btn secexp" data-x="swaptpl">⬇ Swap decision template (for DSC)</button>`:''}
@@ -3471,7 +3635,7 @@ function render(){
   const transBody=`<div class="secnote"><b>Rolling transition</b> — the old can keeps its demand until its on-hand (plus already-placed POs) runs out, then the rest moves to the new can; the old can is never re-ordered. <b>Hard cut</b> — demand moves to the new can immediately. <b>Transition complete</b> — the new can fully owns the demand. When it's <b>not ready</b>, everything stays on the old can and it's ordered normally. Drop the transitions file any time — it updates instantly.</div>
     ${transList.length?transList.map(tr=>{
       const m=transMode(tr);
-      const label=m==='off'?'<b style="color:#b06d00">not ready — stays on old can</b>':(tr.complete?'<b style="color:#177245">complete — new can owns demand</b>':(m==='hard'?'<b style="color:#177245">hard cut — demand on new can now</b>':'<b style="color:#2f5da8">rolling — deplete old, then new can</b>'));
+      const label=m==='off'?'<b style="color:#b06d00">not set — check old/new can codes</b>':(tr.complete?'<b style="color:#177245">complete — new can owns demand</b>':(m==='hard'?'<b style="color:#177245">hard cut — demand on new can now</b>':(tr.ready?'<b style="color:#2f5da8">rolling — deplete old, then new can</b>':'<b style="color:#b06d00">rolling — depleting old can (new can not ready to order yet)</b>')));
       const active=m!=='off';
       return `<div class="ovrow">
         <div class="ov1"><span class="ovcan"><span class="mono canlink" data-can="${tr.oldCan}">${tr.oldCan}</span> <span style="color:var(--faint)">→</span> <span class="mono canlink" data-can="${tr.newCan}" style="color:#177245">${tr.newCan}</span></span>
@@ -3493,7 +3657,21 @@ function render(){
       <div class="ovpos">${s.metrics.stockedOut} stocked out · ${s.metrics.talkDSC} talk-to-DSC · ${s.metrics.activeCans} active cans · captured ${new Date(s.ts).toLocaleString()}</div>
     </div>`).join(''):'<div class="emptyrow">No snapshots yet — click 📸 Capture today to start the tracker.</div>'}`;
 
+  // ---- Unique cans to place POs for (distinct item codes across the PO plan) ----
+  const clsLabel={out:'stocked out',exp:'expedite',now:'order now',wk:'order this week',nx:'order in 2 wks',up:'upcoming',ok:'covered',na:'—'};
+  const orderCanWhen={};
+  for(const t of allPOs){const pb=t.placeBy;for(const l of (t.lines||[])){if(orderCanWhen[l.code]==null||pb<orderCanWhen[l.code])orderCanWhen[l.code]=pb;}}
+  state.orderCansExport=orderCanCodes.map(c=>{const r=state.rows.find(x=>x.code===c)||{};const pb=orderCanWhen[c];return {'Can #':c,'Description':r.desc||'','LTO':r.isLTO?'Y':'N','Qty to order (cans)':Math.round(orderCanMap[c]||0),'Place by':pb==null?'':(pb<=0?'TODAY':dstr(addD(T,pb))),'On hand':Math.round(r.onHand||0),'Days supply':r.daily>0?Math.round(r.onHand/r.daily):''};});
+  const orderCansBody=`<div class="secnote">Every <b>distinct can item-code</b> that needs a purchase order placed, newest-need first. This is the <b>list of cans to order</b> — one can can span several trucks, so this differs from the <b>${allPOsView.length} PO(s)/trucks</b> above. Total: <b>${orderCanCodes.length} unique cans</b>.</div>
+    <div class="pocol">${orderCanCodes.map((c,i)=>{const r=state.rows.find(x=>x.code===c)||{};const pb=orderCanWhen[c];return `<div class="scl${r.isLTO?' ltorow':''}" data-c="${c}"><span class="mono canlink">${c}</span>${ltoTag(c)}<span class="scd">${(r.desc||'').replace(/^PK-A-?\s?CAN[- ]?/i,'')}${dosTag(c)} · <i class="cvdays">${pb!=null?(pb<=0?'place TODAY':'place by '+dstr(addD(T,pb))):''}</i></span><span class="scq">${fmt(orderCanMap[c])}</span></div>`;}).join('')||'<div class="emptyrow">No cans need a PO right now.</div>'}</div>
+    ${orderCanCodes.length?`<button class="btn ghost secexp" data-x="ordercans">⬇ Export unique cans to order</button>`:''}`;
+  // ---- LTOs list (purple) ----
+  const ltoBody=`<div class="secnote">All items flagged <b>LTO</b> (Limited Time Offer) from the BOM's <b>UDF_LTO</b> column, shown in <b style="color:var(--purple)">purple</b> everywhere. <b>Ordering for LTO cans is driven by firm PA + the 13-week production plan only</b> — the forecast is shown on the 🔮 Forecast page but does <b>not</b> trigger "order now" callouts here, so an LTO that the plan already covers won't be falsely flagged. Click any can for detail.</div>
+    <div class="pocol">${ltoCansList.map(x=>`<div class="scl ltorow" data-c="${x.code}"><span class="mono canlink">${x.code}</span> <span class="ltotag">LTO</span><span class="scd">${(x.desc||'').replace(/^PK-A-?\s?CAN[- ]?/i,'')}${dosTag(x.code)} · <i class="cvdays">${clsLabel[x.cls]||''}${x.onProdPlan?' · on plan':''}</i></span><span class="scq">${fmt(x.onHand)} OH</span></div>`).join('')||'<div class="emptyrow">No LTO items in the current view.</div>'}</div>`;
+
   $('#pgrid').innerHTML=strip
+    +sec('ordercans','🔢','Unique cans to place POs for','var(--blue)',orderCanCodes.length,'cans','distinct can item-codes needing an order — place one PO per can',orderCansBody,false)
+    +sec('ltos','🟣','LTOs — flagged items','#7a44c8',ltoCansList.length,'cans','all UDF_LTO items · ordered on PA + plan only, forecast informational',ltoBody,false)
     +sec('dsc','📞','Talk to DSC — firm PA at risk','var(--red)',dscList.length,'cans',`current POs won't cover firm PA in time (${(+($('#setBuf')||{}).value||7)}d buffer)${noPOn?` · ${noPOn} no PO`:''}${latePOn>0?` · ${latePOn} PO too late`:''}${dscList.filter(x=>(x.orderBy??999)<=0).length?` · ${dscList.filter(x=>(x.orderBy??999)<=0).length} past due`:''}`,dscBody,dscList.length>0)
     +sec('orders','📝','POs need to be ordered','var(--orange)',allPOsView.length,'POs',`${fmt(allPOsView.reduce((a,p)=>a+p.total,0))} cans · ${allPOsView.length} PO(s)`,ordersBody,true)
     +sec('swaps','⇄','POs need to be swapped','var(--green)',swapActions.length,'swaps',`existing POs redirected to firm PA needs${swapActions.filter(x=>x.swapAlt).length?` · ${swapActions.filter(x=>x.swapAlt).length} alternative after NO`:''}${declined.length?` · ${declined.length} ✖ declined by DSC`:''}`,swapsBody,false)
@@ -3524,7 +3702,8 @@ function render(){
     else if(k==='overord')exportOverorder();
     else if(k==='prodcovexp')exportProdPlan();
     else if(k==='trackcap')captureSnapshot();else if(k==='trackexp')exportTracker();else if(k==='trackclear')clearTracker();
-    else if(k==='exped')exportRows(expedites,'Cans_Expedite');});
+    else if(k==='exped')exportRows(expedites,'Cans_Expedite');
+    else if(k==='ordercans')exportOrderCans();});
   const act=state.rows.filter(x=>x.active&&['out','exp','now'].includes(x.cls)).length;
   const totalInFile=Object.keys(state.stock||{}).length;
   $('#hdMeta').textContent=`${state.rows.filter(x=>x.active).length} cans shown${totalInFile?(state.showAll?' · all in file':' of '+totalInFile+' in file'):''} · ${allPOs.length} POs to place · ${swapActions.length} swaps · ${act} urgent`;
@@ -3840,7 +4019,7 @@ async function handleFiles(list){
     await procStep('Crunching the board','BOM demand · PA coverage · run-outs · swaps · truck packing',70);
     compute();
     await procStep('Done','board updated',100);
-  }catch(e){alert('Problem: '+e.message);}
+  }catch(e){const where=(e&&e.stack||'').split('\n').slice(1,3).map(l=>l.trim()).join('  ·  ');alert('Problem: '+e.message+(where?'\nWhere: '+where:''));console.error('compute/render error',e);}
   $('#proc').classList.remove('show');
   if(failed.length)alert('Skipped (could not read): '+failed.join(', ')+'. Everything else loaded.');
   if(names.length)toast(names.join(' + ')+' loaded — board recalculated');
@@ -3924,6 +4103,12 @@ function buildWorkedExample(){
   return `<div class="wex"><div class="wxhd">Worked example · Can ${x.code}<small>${x.desc} — traced from raw data to order decision, using today's live figures</small></div>${steps.join('')}</div>`;
 }
 function renderWorkedExample(){const el=$('#sopWorked');if(el)el.innerHTML=buildWorkedExample();}
+function exportOrderCans(){
+  const rows=state.orderCansExport||[];
+  if(!rows.length){toast('No cans to order');return;}
+  try{const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:9},{wch:34},{wch:6},{wch:16},{wch:12},{wch:12},{wch:11}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cans to order');XLSX.writeFile(wb,'Unique_cans_to_order_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Exported '+rows.length+' cans');}catch(e){toast('Export failed');}
+}
 function openModal(code){
   const x=state.rows.find(r=>r.code===code);if(!x)return;
   const T=today();const a=actionOf(x);const why=whyOf(x);
@@ -4046,7 +4231,7 @@ function openModal(code){
     <tr><td>Suggested buy</td><td>${x.suggest?fmt(x.suggest)+' (≈'+x.trucks.toFixed(1)+' trk)':'—'}</td></tr>
     ${x.bandStatus?`<tr><td>On-hand band</td><td class="${x.bandStatus==='below'?'neg':(x.bandStatus==='over'?'':'pos')}">${x.coman?`<b style="color:#2f5da8">🤝 ${x.comanCusts.join(', ')}</b> — `:''}hold ${x.bMin}–${x.bMax}d (${fmt(x.bandMinCans)}–${fmt(x.bandMaxCans)} cans)${x.bandStatus==='below'?' · BELOW MIN':(x.bandStatus==='over'?' · OVER MAX':' · in band')} · <span style="color:var(--faint)">${x.bandSrc}</span></td></tr>`:''}`;
   $('#modal').innerHTML=`
-    <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${leadTxt?` · ${leadTxt}`:''}${x.size?` · <b style="color:${x.size==='big'?'#2f5da8':'#0d8f6f'}">${x.size==='big'?'13oz BIG':'6oz SMALL'} · pallet ${fmt(x.pallet)}</b>`:''}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.transFrom?` · <b style="color:#2f5da8">🔄 NEW transition can (replaces ${x.transFrom})</b>`:''}${x.transTo?` · <b style="color:#b06d00">🔄 OLD transition can${x.transToMode==='hard'?' — demand moved to '+x.transTo:(x.transToMode==='roll'?' — rolling: deplete then '+x.transTo:' → '+x.transTo+' (not yet ready)')}</b>`:''}${goesInto?`<br>→ goes into: ${goesInto}`:''}</div></div><button class="x" id="mx">✕</button></div>
+    <div class="mhead"><div><div class="code">${x.code}</div><div class="desc">${x.desc} · ${x.supplier||'DS CONTAINERS'} · NetStock: ${x.ns||'—'}${leadTxt?` · ${leadTxt}`:''}${x.size?` · <b style="color:${x.size==='big'?'#2f5da8':'#0d8f6f'}">${x.size==='big'?'13oz BIG':'6oz SMALL'} · pallet ${fmt(x.pallet)}</b>`:''}${x.floor?' · <b style="color:var(--green)">DSC FLOOR STOCK</b>':''}${x.transFrom?` · <b style="color:#2f5da8">🔄 NEW transition can (replaces ${x.transFrom})</b>`:''}${x.transTo?` · <b style="color:#b06d00">🔄 OLD transition can${x.transToMode==='hard'?' — demand moved to '+x.transTo:(x.transToMode==='roll'?' — rolling: deplete then '+x.transTo:' → '+x.transTo+' (not yet ready)')}</b>`:''}${goesInto?`<br>→ goes into: ${goesInto}`:''}</div><div class="mpolicy">⚙️ ${x.policy?`Policy: <b>${x.policy}</b>`:'Base: <b>global defaults</b>'} — lead ${x.effLT!=null?x.effLT:x.lt}d · buffer ${x.effBUF!=null?x.effBUF:(+($('#setBuf')||{}).value||7)}d · cover ${x.effCOV!=null?x.effCOV:(+($('#setCov')||{}).value||45)}d · hold ${x.bMin}–${x.bMax}d (ideal ${x.bIdeal}d)</div></div><button class="x" id="mx">✕</button></div>
     <div class="mbody">
       <div class="statstrip">
         <div class="statbox stat-oh">
@@ -4582,6 +4767,14 @@ function applyFloor(){
   compute();
 }
 $('#btnFloorApply').onclick=applyFloor;
+function applyFlex(){
+  const codes=($('#flexList')||{}).value?$('#flexList').value.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s)):[];
+  state.flexed=new Set(codes);
+  const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';
+  try{localStorage.setItem('canDash_flex',[...state.flexed].join(','));}catch(e){}
+  compute();
+}
+if($('#btnFlexApply'))$('#btnFlexApply').onclick=applyFlex;
 $('#btnHelp').onclick=()=>{renderWorkedExample();$('#helpdrawer').classList.add('show');$('#helpovl').classList.add('show');};
 $('#tabBoard').onclick=()=>{state.page='board';render();};
 $('#tabPlan').onclick=()=>{state.page='plan';render();};
@@ -4591,13 +4784,16 @@ $('#tabProd').onclick=()=>{state.page='prodplan';render();};
 $('#tabCap').onclick=()=>{state.page='capacity';render();};
 $('#tabTrack').onclick=()=>{state.page='tracker';render();};
 if($('#tabFcst'))$('#tabFcst').onclick=()=>{state.page='forecast';render();};
+if($('#tabPolicy'))$('#tabPolicy').onclick=()=>{state.page='policies';render();};
 $('#helpx').onclick=$('#helpovl').onclick=()=>{$('#helpdrawer').classList.remove('show');$('#helpovl').classList.remove('show');};
 if($('#sopPdf'))$('#sopPdf').onclick=downloadSOPPDF;
 $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();});
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v48 · rolling transition deplete-old-first · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v55 · swap-pool p fix · '+new Date().toISOString().slice(0,10);
+loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
+try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
@@ -4608,11 +4804,11 @@ function exportLiveHTML(){
     swapDec:{pair:state.swapDec.pair||{},poNo:[...(state.swapDec.poNo||[])],declinedFor:state.swapDec.declinedFor||{}},
     expDec:state.expDec||{},
     forecast:state.forecast,billMap:state.billMap,fgDesc:state.fgDesc,canDesc:state.canDesc,files:state.files,
-    ltoFg:[...state.ltoFg],ltoSplit:state.ltoSplit,
-    floor:[...state.floor],coman:[...state.coman],cust:[...state.cust],
+    ltoFg:[...state.ltoFg],ltoSplit:state.ltoSplit,policies:state.policies,
+    floor:[...state.floor],coman:[...state.coman],cust:[...state.cust],flexed:[...state.flexed],flexList:($('#flexList')||{}).value,
     comanMin:state.comanMin,comanMax:state.comanMax,gMinDOS:state.gMinDOS,gIdealDOS:state.gIdealDOS,gMaxDOS:state.gMaxDOS,
     bandOverride:state.bandOverride,custBand:state.custBand,
-    settings:Object.fromEntries(['setLT','setBuf','setTruck','setCov','setMinDOS','setIdealDOS','setMaxDOS','setFLT','setMOQ','setMinSwap','setStale','setRemnant','setDscLock','setComanMin','setComanMax'].map(id=>[id,(document.getElementById(id)||{}).value])),
+    settings:Object.fromEntries(['setLT','setBuf','setTruck','setCov','setMinDOS','setIdealDOS','setMaxDOS','setFLT','setMOQ','setMinSwap','setSwapWin','setSwapTol','setStale','setRemnant','setDscLock','setComanMin','setComanMax'].map(id=>[id,(document.getElementById(id)||{}).value])),
     floorList:($('#floorList')||{}).value};
   const json=JSON.stringify(S,replacer).replace(/<\//g,'<\\/');
   const root=document.documentElement.cloneNode(true);
@@ -4643,13 +4839,14 @@ $('#btnLiveHTML').onclick=exportLiveHTML;
       const S=revive(JSON.parse(sn.textContent));
       Object.assign(state,{stock:S.stock,pa:S.pa,po:S.po,count:S.count,dsc:S.dsc,dscTot:S.dscTot,
         forecast:S.forecast||state.forecast,billMap:S.billMap||state.billMap,fgDesc:S.fgDesc||state.fgDesc,canDesc:S.canDesc||state.canDesc,
-        ltoFg:S.ltoFg?new Set(S.ltoFg):state.ltoFg,ltoSplit:S.ltoSplit!=null?S.ltoSplit:state.ltoSplit,
+        ltoFg:S.ltoFg?new Set(S.ltoFg):state.ltoFg,ltoSplit:S.ltoSplit!=null?S.ltoSplit:state.ltoSplit,policies:Array.isArray(S.policies)?S.policies:state.policies,
         files:S.files||state.files,bandOverride:S.bandOverride||{},custBand:S.custBand||{},
         comanMin:S.comanMin!=null?S.comanMin:state.comanMin,comanMax:S.comanMax!=null?S.comanMax:state.comanMax,
         gMinDOS:S.gMinDOS!=null?S.gMinDOS:state.gMinDOS,gIdealDOS:S.gIdealDOS!=null?S.gIdealDOS:state.gIdealDOS,gMaxDOS:S.gMaxDOS!=null?S.gMaxDOS:state.gMaxDOS});
       if(S.expDec){state.expDec={};for(const k in S.expDec){const e=S.expDec[k]||{};state.expDec[k]={dec:e.dec,newDate:e.newDate?new Date(e.newDate):null};}}
       state.swapDec={pair:(S.swapDec&&S.swapDec.pair)||{},poNo:new Set((S.swapDec&&S.swapDec.poNo)||[]),declinedFor:(S.swapDec&&S.swapDec.declinedFor)||{}};
       state.floor=new Set(S.floor||[]);state.coman=new Set(S.coman||[]);state.cust=new Set(S.cust||[]);
+      if(S.flexed){state.flexed=new Set(S.flexed);const fe=$('#flexList');if(fe&&S.flexList!=null)fe.value=S.flexList;const fc=$('#flexCount');if(fc)fc.textContent=state.flexed.size+' flexed-in';}
       if(S.settings)for(const id in S.settings){const el=document.getElementById(id);if(el&&S.settings[id]!=null&&S.settings[id]!=='')el.value=S.settings[id];}
       if(S.floorList&&$('#floorList'))$('#floorList').value=S.floorList;
       compute();
