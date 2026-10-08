@@ -1116,6 +1116,16 @@ function parseStock(wb){
 function parsePA(wb){
   let ws=sheetByName(wb,'live pa')||wb.Sheets[wb.SheetNames[0]];
   const r=rws(ws);
+  // locate columns by header — date each order by SHIP DATE (team's rule: some Pickdates are blank, so they
+  // weren't summing into demand). Pickdate is used only as a fallback when a row has no ship date.
+  let iShip=4,iPick=3,iCust=7;
+  for(let i=0;i<Math.min(8,r.length);i++){
+    const hl=(r[i]||[]).map(x=>String(x==null?'':x).trim().toLowerCase());
+    const s=hl.findIndex(x=>x.includes('ship')&&x.includes('date'));
+    const p=hl.findIndex(x=>x.includes('pick'));
+    const c=hl.findIndex(x=>x.includes('cust')&&x.includes('name'));
+    if(s>=0||p>=0){if(s>=0)iShip=s;if(p>=0)iPick=p;if(c>=0)iCust=c;break;}
+  }
   const fg={};let cur=null,gotQ=false;
   const isCode=v=>typeof v==='string'&&/^[A-Z][A-Z0-9.\-\/ ]{0,11}$/.test(v.trim())&&v.trim()!=='Q.O.H.';
   for(let i=1;i<r.length;i++){
@@ -1128,9 +1138,11 @@ function parsePA(wb){
     if(!gotQ&&c0!=null&&!isNaN(q)){fg[cur].qoh=q;gotQ=true;}
     const qty=+c1;
     if(c1!=null&&!isNaN(qty)){
-      const cust=String(r[i][7]||'');const pd=xDate(r[i][3]);
+      const cust=String(r[i][iCust]||'');
+      const ship=xDate(r[i][iShip]),pick=xDate(r[i][iPick]);
+      const pd=ship||pick;   // SHIP DATE drives demand timing; fall back to pickdate only if ship date is blank
       if(!/INVENTORY/i.test(cust)&&(!pd||pd.getFullYear()<2050)){
-        fg[cur].orders+=qty;fg[cur].lines.push({qty,date:pd,cust});
+        fg[cur].orders+=qty;fg[cur].lines.push({qty,date:pd,cust,shipDate:ship,pickDate:pick});
       }
     }
   }
@@ -4816,7 +4828,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v56 · 2027 forecast · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v57 · PA dated by ship date · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
