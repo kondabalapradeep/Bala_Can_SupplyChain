@@ -904,6 +904,9 @@ function matchRow(x,q){
   if(s.includes(',')){const toks=s.split(/[,;]+/).map(t=>t.trim()).filter(Boolean);return toks.some(t=>hay.includes(t));} // multi-select
   return hay.includes(s);
 }
+// Customer filter — a can passes when no customer is selected, or when its demand serves a selected customer (per the row's custMatch flag).
+// Used on pages (Production Plan, Forecast) that build from the plan/forecast rather than the board rows directly.
+function custOK(code){if(!state.cust.size)return true;const r=(state.rows||[]).find(x=>x.code===code);return !!(r&&r.custMatch);}
 
 const state={
   stock:null,pa:null,po:null,count:null,
@@ -2900,7 +2903,7 @@ function renderProdPlan(){
   if(!state.prodPlan){el.innerHTML=`<div class="planbar"><span class="now"><b>Production Plan</b> — upload the 13-week finished-goods production plan (Item Code + P01–P12 FCST) to see the week-by-week can consumption it creates and how long your on-hand covers it. Once loaded, these cans are also ordered for on the Board.</span></div><div class="emptyrow" style="margin-top:12px">No production plan loaded. Drop the file into the <b>🏭 Production Plan</b> tile up top.</div>`;$('#hdMeta').textContent='no production plan loaded';return;}
   const dd=prodPlanData();const q=(state.q||'').trim().toLowerCase();
   const ppMatch=r=>{if(!q)return true;return q.split(',').map(s=>s.trim()).filter(Boolean).some(p=>String(r.code).toLowerCase().includes(p)||(r.desc||'').toLowerCase().includes(p)||r.fgs.some(f=>String(f).toLowerCase().includes(p)));};
-  const rows=dd.rows.filter(ppMatch).filter(r=>!state.ltoOnly||r.isLTO);const mode=state.ppMode||'wk';
+  const rows=dd.rows.filter(ppMatch).filter(r=>!state.ltoOnly||r.isLTO).filter(r=>custOK(r.code));const mode=state.ppMode||'wk';
   if(state.ppView==='spread'){renderProdSpread(el,dd,rows.filter(r=>r.planned),mode,T);return;}
   const bks=ppBuckets(mode,T);const now=fiscalNow(T);
   const nowTxt=now?`Today <b>${dlong(T)}</b> · fiscal <b>P${now.per.p}</b>${now.wk?` · <b>Week ${now.wk.wk}</b> (${dstr(now.wk.sd)}–${dstr(now.wk.ed)})`:''} of ${now.per.w} — production-plan consumption`:'production-plan consumption';
@@ -3058,7 +3061,7 @@ function exportProdSpread(){
   const dd=prodPlanData();if(!dd)return;const T=today();const mode=state.ppMode||'wk';const bks=ppBuckets(mode,T);const tgt=state.ppTarget||2;
   const q=(state.q||'').trim().toLowerCase();
   const ppMatch=r=>{if(!q)return true;return q.split(',').map(s=>s.trim()).filter(Boolean).some(p=>String(r.code).toLowerCase().includes(p)||(r.desc||'').toLowerCase().includes(p)||r.fgs.some(f=>String(f).toLowerCase().includes(p)));};
-  const sp=spreadPlan(dd.rows.filter(ppMatch),bks,tgt);if(!sp.length){toast('No data');return;}
+  const sp=spreadPlan(dd.rows.filter(ppMatch).filter(r=>custOK(r.code)),bks,tgt);if(!sp.length){toast('No data');return;}
   const aoa=[],merges=[];
   aoa.push(['Rank','Can #','Description','FG','On hand','Line'].concat(bks.map(b=>b.label)).concat(['New to place','On order','Removable']));
   aoa.push(['','','','','',''].concat(bks.map(b=>b.sub)).concat(['','','']));
@@ -3216,6 +3219,7 @@ function renderForecast(){
   const sf=state.sizeFilter||'all';
   let rows=dd.rows.filter(r=>{
     if(state.ltoOnly&&!r.isLTO)return false;
+    if(!custOK(r.code))return false;   // customer filter applies here too
     if(sf!=='all'){const s=sizeOf(r.desc).size;if(s!==sf)return false;}
     if(!q)return true;
     const hay=(r.code+' '+r.desc+' '+r.fgs.join(' ')).toLowerCase();
@@ -4828,7 +4832,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v57 · PA dated by ship date · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v58 · customer filter on all pages · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
