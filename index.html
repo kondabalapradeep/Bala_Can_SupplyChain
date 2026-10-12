@@ -1098,7 +1098,8 @@ function detect(wb){
     const r0=rws(wb.Sheets[sn]);
     const h=(r0[0]||[]).map(x=>String(x||'').trim().toLowerCase());
     if(h.some(x=>x.includes('old')&&x.includes('can'))&&h.some(x=>x.includes('new')&&x.includes('can')))return 'trans';
-    if(h.some(x=>/p\s*0?\d{1,2}\s*fcst/.test(x))&&h.some(x=>x.includes('item code')))return 'prodplan';
+    // production plan — the header row may sit below title / section / total rows (new 13-week template), so scan the first rows
+    for(let k=0;k<Math.min(r0.length,10);k++){const hk=(r0[k]||[]).map(x=>String(x==null?'':x).trim().toLowerCase());if(hk.some(x=>/p\s*0?\d{1,2}\s*fcst/.test(x))&&hk.some(x=>x.includes('item code')))return 'prodplan';}
     if(h.some(x=>x.includes('expedite'))&&h.some(x=>x.includes('new')&&(x.includes('arriv')||x.includes('date'))))return 'expdec';
     if(h.some(x=>x.includes('decision'))&&h.some(x=>x.includes('existing po')||x.includes('switch to')))return 'swapdec';
   }
@@ -1315,26 +1316,37 @@ function fgProdDaily(fg,T,H){
   return arr;
 }
 function parseProdPlan(wb){
+  // Parse the 13-week production schedule. Works with the current template (header sits below title/section/total rows,
+  // with P01–P12 FCST, optional 2027 forecast, COMAN, then 13 dated WEEKLY production columns) and the older row-0 layout.
+  // The dated WEEKLY columns are the real production; the P## FCST columns are only a fallback when no weekly columns exist.
+  // Combo sheets (a "Row Type" MOTHER/COMPONENT breakdown) are read at MOTHER level only — components are halves of the
+  // mother and would double-count. Across sheets, the first occurrence of a code wins (main plan before any breakdown).
+  const plan={},desc={};let any=false,usedWeekly=false;
   for(const sn of wb.SheetNames){
-    const r=rws(wb.Sheets[sn]);
-    const h=(r[0]||[]);const hl=h.map(x=>String(x==null?'':x).trim().toLowerCase());
-    const iCode=hl.findIndex(x=>x.includes('item code')||x==='item'||x==='fg');
-    const iDesc=hl.findIndex(x=>x.includes('description'));
-    const wkCols=[];for(let c=0;c<h.length;c++){const dt=hdrDate(h[c]);if(dt)wkCols.push({idx:c,date:dt});}
-    const perCols=[];for(let c=0;c<h.length;c++){const m=hl[c].match(/p\s*0?(\d{1,2})\s*fcst/);if(m){const p=+m[1];if(p>=1&&p<=12)perCols.push({idx:c,p});}}
-    if(iCode<0||(wkCols.length<3&&perCols.length<3))continue;
-    const plan={},desc={};let any=false;
-    for(let i=1;i<r.length;i++){
+    const r=rws(wb.Sheets[sn]);if(!r||!r.length)continue;
+    // locate the header row: a row with an Item Code column plus ≥3 weekly date columns or ≥3 P## FCST columns
+    let hdr=-1,iCode=-1,iDesc=-1,iRowType=-1,wkCols=[],perCols=[];
+    for(let k=0;k<Math.min(r.length,10);k++){
+      const row=r[k]||[];const hl=row.map(x=>String(x==null?'':x).trim().toLowerCase());
+      const ic=hl.findIndex(x=>x==='item code'||x.includes('item code')||x==='item'||x==='fg');
+      if(ic<0)continue;
+      const wc=[];for(let c=0;c<row.length;c++){const dt=hdrDate(row[c]);if(dt)wc.push({idx:c,date:dt});}
+      const pc=[];for(let c=0;c<hl.length;c++){const m=hl[c].match(/p\s*0?(\d{1,2})\s*fcst/);if(m){const p=+m[1];if(p>=1&&p<=12&&!pc.some(x=>x.p===p))pc.push({idx:c,p});}}
+      if(wc.length>=3||pc.length>=3){hdr=k;iCode=ic;iDesc=hl.findIndex(x=>x.includes('description'));iRowType=hl.findIndex(x=>x.includes('row type'));wkCols=wc;perCols=pc;break;}
+    }
+    if(hdr<0)continue;
+    for(let i=hdr+1;i<r.length;i++){
       const code=String(r[i][iCode]==null?'':r[i][iCode]).trim();
       if(!code||/total/i.test(code))continue;
+      if(iRowType>=0){const rt=String(r[i][iRowType]||'').trim().toUpperCase();if(rt&&rt!=='MOTHER')continue;} // combo breakdown: mother rows only
+      if(plan[code])continue;                                                                                   // first sheet / first row wins
       let weekly=null,periods=null,has=false;
       if(wkCols.length>=3){weekly=wkCols.map(wc=>({date:wc.date,qty:+r[i][wc.idx]||0}));if(weekly.some(x=>x.qty>0))has=true;}
-      if(perCols.length>=3){periods=new Array(12).fill(0);for(const pc of perCols){const v=+r[i][pc.idx];if(!isNaN(v))periods[pc.p-1]=v;}if(!has&&periods.some(v=>v>0))has=true;}
-      if(has){plan[code]={weekly,periods};if(iDesc>=0)desc[code]=String(r[i][iDesc]||'').trim();any=true;}
+      else if(perCols.length>=3){periods=new Array(12).fill(0);for(const pc of perCols){const v=+r[i][pc.idx];if(!isNaN(v))periods[pc.p-1]=v;}if(periods.some(v=>v>0))has=true;}
+      if(has){plan[code]={weekly,periods};if(iDesc>=0)desc[code]=String(r[i][iDesc]||'').trim();any=true;if(wkCols.length>=3)usedWeekly=true;}
     }
-    return any?{plan,desc,weekly:wkCols.length>=3}:null;
   }
-  return null;
+  return any?{plan,desc,weekly:usedWeekly}:null;
 }
 function parseTransitions(wb){
   // Item transitions: OLD ITEM/CAN -> NEW ITEM/CAN. Rolling = deplete the old can first, then move demand to the new can;
@@ -5024,7 +5036,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v60 · can multi-select + ship-ahead offset · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v61 · new 13-week production template · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
