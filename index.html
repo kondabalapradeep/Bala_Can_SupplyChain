@@ -366,6 +366,7 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .statbox .sv small{font-size:12px;font-weight:700;opacity:.7;margin-left:5px}
 .statbox .ss{font-size:10.5px;margin-top:2px;opacity:.8}
 .stat-oh{background:#e8f0fd;border-color:#b9d0f5;color:#1d4f91}
+.stat-phys{background:#f5f0fb;border-color:#ddcff2;color:#5c3f93}
 .stat-dos.good{background:#e5f6ec;border-color:#a9dcbd;color:#177245}
 .stat-dos.warn{background:#fdf4dd;border-color:#eed79a;color:#9a6a00}
 .stat-dos.bad{background:#fde8e8;border-color:#f0b6b6;color:#b32020}
@@ -838,6 +839,8 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
 /* status pills keep meaning; soften to Aerosol tints */
 .tg-ok,.a-grn,.cm-in{background:var(--green-bg)!important}
 .tg-now,.a-red{background:var(--red-bg)!important}
+/* physical-count chip */
+.cntchip{display:inline-block;font-size:9px;font-weight:800;background:#eef4fb;color:var(--blue);border:1px solid #cfe0f5;border-radius:5px;padding:0 5px;letter-spacing:.02em;vertical-align:1px;white-space:nowrap}
 
 /* ===== live graphics: conveyor empty-state, marquee, hover ===== */
 .empty{padding:40px 24px 50px!important}
@@ -1046,7 +1049,7 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
     <div class="rule"><b>What it shows:</b> for one can — supply on hand, days of supply, DSC floor stock, and three headline coverage points (<b>Firm PA covered</b>, <b>Production plan covered</b>, <b>Forecast days of supply</b>), followed by the plain-English "why," key dates, demand drivers, open POs, and the firm PA sales orders behind it. <b>How we use it:</b> the single source of truth for one can when someone asks "why are we ordering this / when do we run out."</div>
 
     <h3>🔄 Item transitions (old can → new can)</h3>
-    <div class="rule"><b>Rolling transition:</b> the <b>old can is consumed first</b> — all demand for the item is shown on the old can until its on-hand (plus any already-placed POs) runs to zero, and only the remainder then moves to the new can, week by week. We <b>never place new POs for the old can</b> on a rolling transition — the goal is to run it down. Orders are placed on the <b>new can</b> only for the demand that spills past the old can's depletion, timed with the normal lead time. <b>Hard cut / transition complete:</b> all demand moves to the new can immediately. The old can is <b>always depleted first on a rolling transition — even before the new can is marked "Ready for order."</b> The Ready flag only governs placing orders on the new can (which only happens once the old can is run down anyway); it never leaves demand sitting on the new can while the old can still has stock.</div>
+    <div class="rule"><b>Transition gate — "Ready to order" drives it:</b> the moment <b>Ready to order = Yes</b>, we start ordering the <b>new can</b>. <b>Order placed (Yes/No) is ignored.</b> While ready but not yet complete the transition is <b>rolling</b> — the old can's on-hand is depleted first, then the new can is ordered for the rest (the old can is not re-ordered). Once <b>Transition complete = Yes</b> (the new BOM has been created), the new can <b>fully owns</b> the item's demand. If <b>Ready to order is still No</b>, nothing changes — all demand stays on the old can and it is ordered normally.</div>
 
     <h3 style="margin-top:18px;padding-top:6px;border-top:2px solid #e3e9f1">📖 Worked example — one can, every number explained</h3>
     <div class="rule" style="background:#fbf7ef;border-color:#ecdfba">This walks through a single real can from today's data, step by step, so a new team member can see exactly where each number comes from and how it turns into an order decision. Load your files and the example uses a live can; otherwise it shows an illustration.</div>
@@ -1058,7 +1061,7 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
       <li><b>Stock on Hand (NetStock)</b> — can on-hand, per-item lead time, safety stock, and NetStock's own status (Ok / Potential s/o / Stocked out…).</li>
       <li><b>Live PA</b> — finished-goods on hand (Q.O.H.) and every open sales order with its ship date. INVENTORY placeholder lines (cust 9999 / year 2055) are ignored.</li>
       <li><b>Purchase Orders</b> — open can PO lines (ordered − received, converted THOU → cans) with required dates.</li>
-      <li><b>Can Inv Count</b> — physical counts. If a can was <b>Counted / Sent for Adjustment / Adjusted</b>, the physical figure replaces the system figure (latest count date wins). Variances &gt; 10% or 5,000 cans are flagged Δ.</li>
+      <li><b>Can Inv Count</b> — physical on-hand counts (Date · Item Code · Total Count). The physical count and its date are <b>shown for reference</b> on each counted can (📋 chip + in the can detail); the board's on-hand math <b>always uses the NetStock figure</b>. Variance of the physical count vs NetStock is shown so you can spot discrepancies.</li>
       <li><b>Forecast + BOM</b> — built in. Forecast is in cases; the BOM explodes each finished good into cans (≈12.24 cans per 12-pack case incl. scrap).</li>
       <li><b>DSC Floor Stock</b> — the "Alamance Detailed Inventory On Hand" pivot from DSC: can codes in column A, quantities by year/period. The current-period column (e.g. 2026-08) is read as DSC's floor on hand; the row Grand Total is kept as "all lots". If DSC's floor covers a can's full need, the quick-turn lead is applied automatically (DSC✓ chip) — which pulls that can out of urgent ordering.</li>
     </ul>
@@ -1148,6 +1151,8 @@ const fmt=n=>n==null||isNaN(n)?'—':Math.round(n).toLocaleString('en-US');
 // Days of supply for a can (on-hand ÷ daily use). Read from the live board rows so it matches the board exactly.
 function dosVal(code){const r=(state.rows||[]).find(x=>x.code===code);if(!r)return null;return r.daily>0?r.onHand/r.daily:(r.totDem>1?0:Infinity);}
 function dosTxt(v){return v==null?'—':(v===Infinity?'∞':Math.round(v)+'d');}
+// small "physically counted on <date>" chip, shown on a can's on-hand wherever the physical count is the on-hand figure
+function cntChip(x){if(!x||!x.counted||!x.cnt)return '';const d=x.cnt.date;const dt=d?((d.getMonth()+1)+'/'+d.getDate()):'';return ` <span class="cntchip" title="Physical count: ${fmt(x.cnt.phys)} cans${d?' on '+dstr(d):''} — reference only; on-hand math uses NetStock">📋 ${fmt(x.cnt.phys)}${dt?' · '+dt:''}</span>`;}
 function dosTag(code){const v=dosVal(code);return v==null?'':` <span class="dostag">(DOS ${dosTxt(v)})</span>`;}
 const DAY=86400000;
 const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d;};
@@ -1222,7 +1227,7 @@ function detect(wb){
   if(names.some(n=>n.includes('pending cans')))return 'count';
   for(const sn of wb.SheetNames){const rr=rws(wb.Sheets[sn]);if(!rr)continue;
     for(let k=0;k<Math.min(rr.length,8);k++){const hrow=(rr[k]||[]).map(x=>String(x||'').trim().toLowerCase());
-      if(hrow.some(x=>x==='item code')&&hrow.some(x=>x==='total'||x.includes('physical count')))return 'count';
+      if(hrow.some(x=>x==='item code'||x.includes('item code'))&&hrow.some(x=>x==='total'||x.includes('total count')||x.includes('physical count')))return 'count';
       if(hrow.some(x=>x==='c'||x==='code')&&hrow.some(x=>x.includes('physical count'))&&hrow.some(x=>x.includes('adjust')))return 'count';}}
   for(const sn of wb.SheetNames){
     const r0=rws(wb.Sheets[sn]);
@@ -1513,17 +1518,17 @@ function parseTransitions(wb){
   }
   return null;
 }
-// Transition mode: 'off' = invalid/no pair · 'hard' = all demand on new can now (hard cut switched over, or complete) · 'roll' = deplete the OLD can first, then the remainder on the new can.
-// A rolling transition ALWAYS depletes the old can first — even before it is "ready to order" the new can. The ready flag only
-// governs ordering the new can (which naturally happens only once the old can is depleted); it must never leave demand stranded
-// on the new can while the old can still has stock to consume.
+// Transition mode: 'off' = not applied · 'roll' = deplete the OLD can's stock first then order the NEW can for the rest · 'hard' = NEW can owns all demand now.
+// GATE (team rule): the ONLY trigger is "Ready to order" = Yes — then we start ordering the NEW can. "Order placed" is ignored
+// (Yes or No, doesn't matter). "Transition complete" = Yes means the new BOM has been created, so the new can then fully owns
+// the demand (hard switch). While Ready to order is still No, nothing changes — all demand stays on the OLD can and it is ordered normally.
 function transMode(tr){
   if(!tr||!tr.oldCan||!tr.newCan||tr.oldCan===tr.newCan)return 'off';
-  if(tr.complete)return 'hard';            // transition done — new can owns everything
-  if(tr.hardcut&&tr.ready)return 'hard';   // hard cut that has switched over — demand on the new can now
-  return 'roll';                           // rolling, or pre-switch — consume the old can's on-hand first, then the new can
+  if(!tr.ready)return 'off';                    // not ready to order yet → leave all demand on the old can
+  if(tr.complete||tr.hardcut)return 'hard';     // new BOM created (complete) or a hard-cut type → new can owns all demand now
+  return 'roll';                                // ready to order → order the new can, depleting the old can's on-hand first
 }
-function canOH(c){const cnt=state.count&&state.count[c];const adj=cnt?!!cnt.adjusted:false;const phys=!!cnt&&!!cnt.counted&&!adj;return phys?cnt.phys:((state.stock[c]&&state.stock[c].onHand)||0);}
+function canOH(c){return (state.stock[c]&&state.stock[c].onHand)||0;}   // NetStock on-hand is the single source of truth; physical counts are reference-only
 function canArr(c,T,H){const a=new Float64Array(H);const ps=(state.po&&state.po[c])||[];for(const p of ps){if(!p.date)continue;let di=Math.round((p.date-T)/86400000);if(di<0)di=0;if(di<H)a[di]+=p.qty||0;}return a;}
 function parseExpedite(wb){
   // Expedite decision file: one row per PO — "Can expedite? (YES/NO)" + "New arrival date". YES with a date pulls that PO's arrival in.
@@ -1615,35 +1620,47 @@ function parseCount(wb){
   // but skip a tab whose row is an exact repeat (same count already seen) so the same pile isn't double-counted. MAS (system) is the
   // same book value on both tabs, so it is taken once, never summed. phys = combined physical count -> becomes the item's on-hand.
   // Count date: read M.D.YY from a tab name (e.g. "8.4.26") when present, else today.
-  let cdate=null;
-  for(const sn of wb.SheetNames){const m=sn.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);if(m){let yr=+m[3];if(yr<100)yr+=2000;const d=new Date(yr,+m[1]-1,+m[2]);if(!isNaN(d))cdate=d;break;}}
-  if(!cdate){cdate=new Date();cdate.setHours(0,0,0,0);}
+  // fallback count date from a tab name like "8.4.26" when the file has no Date column
+  let fileDate=null;
+  for(const sn of wb.SheetNames){const m=sn.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);if(m){let yr=+m[3];if(yr<100)yr+=2000;const d=new Date(yr,+m[1]-1,+m[2]);if(!isNaN(d)){fileDate=d;break;}}}
   const acc={};let found=false;
   for(const sn of wb.SheetNames){
     const ws=wb.Sheets[sn];if(!ws)continue;
     const r=rws(ws);if(!r||!r.length)continue;
-    // locate the header row (has "Item Code" and a "Total"/"Physical count" column)
-    let hr=-1,iC=-1,iM=-1,iT=-1;
+    // header row must have Item Code AND a real count column — a "Total Count" / "Total" / "Physical count" column.
+    // A sheet with Item Code but NO count column (e.g. a master "Cans List") is skipped, so it never zeroes out on-hand.
+    let hr=-1,iC=-1,iM=-1,iT=-1,iD=-1;
     for(let k=0;k<Math.min(r.length,8);k++){
       const row=(r[k]||[]).map(x=>String(x==null?'':x).trim().toLowerCase());
       const ci=row.findIndex(x=>x==='item code'||x.includes('item code'));
-      if(ci>=0){hr=k;iC=ci;iM=row.findIndex(x=>x==='mas'||x.includes('mas'));iT=row.findIndex(x=>x==='total');if(iT<0)iT=row.findIndex(x=>x.includes('physical count'));break;}
+      if(ci<0)continue;
+      let ti=row.findIndex(x=>x==='total count'||x.includes('total count'));
+      if(ti<0)ti=row.findIndex(x=>x==='total');
+      if(ti<0)ti=row.findIndex(x=>x.includes('physical count'));
+      if(ti<0)ti=row.findIndex(x=>x==='count'||(x.includes('count')&&!x.includes('discount')));
+      if(ti<0)continue;                                   // no count column on this sheet — skip it
+      hr=k;iC=ci;iT=ti;iM=row.findIndex(x=>x==='mas'||x.includes('mas'));iD=row.findIndex(x=>x==='date'||x.includes('date'));break;
     }
     if(hr<0)continue;
     found=true;
     for(let i=hr+1;i<r.length;i++){
       const row=r[i]||[];let code=String(row[iC]==null?'':row[iC]).trim();
       if(code.endsWith('.0'))code=code.slice(0,-2);
-      if(!code||!/\d/.test(code))continue;
-      const mas=iM>=0?(+row[iM]||0):0, tot=iT>=0?(+row[iT]||0):0;
-      if(!acc[code])acc[code]={mas:0,phys:0,seen:{}};
-      if(mas>acc[code].mas)acc[code].mas=mas;                          // system value — take once
-      if(!acc[code].seen[tot]){acc[code].phys+=tot;acc[code].seen[tot]=1;} // combine counts, skip exact repeats
+      if(!/^\d{4,6}$/.test(code))continue;                // numeric can codes only
+      const tot=+row[iT];if(isNaN(tot))continue;          // need a real counted figure
+      const mas=iM>=0?(+row[iM]||0):0;
+      const rdate=iD>=0?xDate(row[iD]):null;
+      if(!acc[code])acc[code]={mas:0,phys:0,seen:{},date:null};
+      if(mas>acc[code].mas)acc[code].mas=mas;                              // system value — take once
+      if(!acc[code].seen[tot]){acc[code].phys+=tot;acc[code].seen[tot]=1;} // combine counts across tabs, skip exact repeats
+      if(rdate&&(!acc[code].date||rdate>acc[code].date))acc[code].date=rdate; // latest count date per can
     }
   }
   if(!found)return null;
   const out={};
-  for(const code in acc){const a=acc[code];out[code]={date:cdate,sysAtCount:a.mas,phys:a.phys,diff:a.phys-a.mas,status:'Counted'};}
+  for(const code in acc){const a=acc[code];
+    const cdate=a.date||fileDate||(()=>{const d=new Date();d.setHours(0,0,0,0);return d;})();
+    out[code]={date:cdate,sysAtCount:(a.mas>0?a.mas:null),phys:a.phys,diff:(a.mas>0?a.phys-a.mas:null),counted:true,adjusted:false,status:'Counted'};}
   return out;
 }
 function parseForecast(wb){
@@ -1938,9 +1955,9 @@ function compute(){
     const sz=sizeOf(st.desc);
     const cnt=state.count?state.count[code]:null;
     const adjusted=cnt?!!cnt.adjusted:false;
-    const usePhys=!!cnt&&!!cnt.counted&&!adjusted;   // physical count wins ONLY when counted and not yet adjusted in MAS
-    const counted=usePhys;
-    const onHand=usePhys?cnt.phys:st.onHand;         // adjusted or uncounted -> use the reconciled NetStock on-hand
+    const counted=!!cnt&&!!cnt.counted;              // a physical count is on file — shown for reference only
+    const onHand=st.onHand;                           // NetStock on-hand is the single source of truth for every calculation
+    if(cnt&&cnt.counted){cnt.sysAtCount=st.onHand;cnt.diff=cnt.phys-st.onHand;} // physical-count variance vs the NetStock figure, for display
     const floor=state.floor.has(code);
     const pol=canPol[code]||null;                                   // custom policy for this can, if any
     const BUFc=(pol&&pol.buf!=null)?pol.buf:BUF;                    // policy production buffer, else global
@@ -2245,9 +2262,8 @@ function whyOf(x){
     const dosAfter=x.daily>0&&x.suggest>0?(x.suggest/x.daily):null;
     li.push(`⚠️ <b>No forecast for this can — demand is firm sales orders only.</b> Once the open PA orders are produced there is <b>no ongoing demand</b>, so it should not be reordered on a rolling 45-day cover. ${x.suggest>0?`It covers the sales-order shortfall, but the MOQ (${fmt(moq)}) would leave you at about <b>${dosAfter?dosAfter.toFixed(0):'—'} days</b> with nothing after to consume it — <b>confirm before ordering</b>.`:`The sales orders are already covered by on-hand / open POs — <b>no order needed</b>.`}`);
   }
-  if(x.counted)li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from the <b>physical count on ${dstr(x.cnt.date)}</b> (system showed ${fmt(x.cnt.sysAtCount)} at count — variance ${x.cnt.diff<0?'−':'+'}${fmt(Math.abs(x.cnt.diff))}${x.varFlag?', <b>large variance flagged</b>':''}) — not yet adjusted in MAS, so the physical count is used.`);
-  else if(x.adjusted)li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from the <b>NetStock system</b>. Physically counted ${x.cntEntry&&x.cntEntry.date?dstr(x.cntEntry.date):'recently'} (count ${x.cntEntry?fmt(x.cntEntry.phys):'—'}) and <b>already adjusted in MAS</b>, so the reconciled system figure is used.`);
-  else li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from NetStock (system figure — not in the latest physical count).`);
+  li.push(`On hand basis: <b>${fmt(x.onHand)} cans</b> from the <b>NetStock system</b> — the single source of truth for all planning here.`);
+  if(x.counted&&x.cnt)li.push(`📋 Physical count on file: <b>${fmt(x.cnt.phys)} cans</b> counted <b>${dstr(x.cnt.date)}</b> (NetStock shows ${fmt(x.cnt.sysAtCount)} — variance ${x.cnt.diff<0?'−':'+'}${fmt(Math.abs(x.cnt.diff))}${x.varFlag?', <b>large variance flagged</b>':''}). Shown for reference only; the on-hand math uses the NetStock figure.`);
   if(x.daily>0){
     const top=x.drivers.slice(0,3).map(d=>`<b>${d.fg}</b> ${(state.fgDesc[d.fg]||'').split(' ').slice(0,4).join(' ')} (${fmt(d.rate)}/day)`).join(', ');
     li.push(`Burn rate ≈ <b>${fmt(x.daily)} cans/day</b> ${x.paOnly?'from <b>firm sales orders</b> (no forecast)':`from the P${T.getMonth()+1}–P${((T.getMonth()+1)%12)+1} forecast`} exploded through the BOM. Main drivers: ${top}.`);
@@ -2379,7 +2395,7 @@ function renderPlanner(){
     <td class="stick c1 mono"><span class="canlink" data-can="${x.code}">${x.code}</span>${x.isLTO?' <span class="ltotag">LTO</span>':''}</td>
     <td class="stick c2" title="${x.desc}"><span class="rk">#${i+1}</span>${x.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}</td>
     <td class="stick c3" title="${x.fgFull.replace(/"/g,'&quot;')}">${x.fgTop||'—'}</td>
-    <td class="stick c4"><b>${fmt(x.onHand)}</b><span class="dossub">DOS ${dosTxt(x.dos)}</span></td>
+    <td class="stick c4"><b>${fmt(x.onHand)}</b>${cntChip(x)}<span class="dossub">DOS ${dosTxt(x.dos)}</span></td>
     ${cells.map((c,i)=>`<td class="${bks[i].cur?'cur':''}">
       <span class="need ${c.need<1?'z':''}">${c.need<1?'·':fmt(c.need)}</span>
       ${c.arr>0?`<span class="sub po">+${fmt(c.arr)} PO</span>`:''}
@@ -3044,7 +3060,7 @@ function renderCoverage(){
             <div class="nsmark max" style="left:${maxL}%"><span>Max ${x.bMax}d</span></div>
           </div>
           <div class="nsnums">
-            <span class="ns-oh">🏭 ${fmt(it.onHand)} on hand <small>· ${ohDays.toFixed(0)}d</small></span>
+            <span class="ns-oh">🏭 ${fmt(it.onHand)} on hand <small>· ${ohDays.toFixed(0)}d</small></span>${cntChip(it.x)}
             <span class="ns-oo">🚚 ${fmt(it.totalPO)} on order${ooDays>0?` <small>· ${ooDays.toFixed(0)}d</small>`:''}</span>
             ${short>0?`<span class="ns-short">▼ ${fmt(short)} below Min</span>`:''}
           </div>
@@ -3155,7 +3171,7 @@ function prodPlanData(){
     const cm=canMap[code];const wk=cm.wk;
     const row=state.rows.find(r=>r.code===code);const st=state.stock[code];
     const onHand=row?row.onHand:(st?st.onHand:0);
-    const basis=row?(row.counted?'physical count':(row.adjusted?'system (adjusted in MAS)':'NetStock')):'NetStock';
+    const basis=row?(row.adjusted?'system (adjusted in MAS)':'NetStock'):'NetStock';
     const desc=(row?row.desc:(state.canDesc[code]||''))||'';
     const arrArr=row?row.arrArr:new Float64Array(H);
     // coverage = how many plan weeks the current on-hand lasts (in days ≈ weeks×7)
@@ -3181,7 +3197,7 @@ function prodPlanData(){
   for(const r of state.rows){
     if(!/^12/.test(r.code)||canMap[r.code])continue;
     rows.push({code:r.code,desc:r.desc||state.canDesc[r.code]||'',fgs:[],wk:emptyWk,arrArr:r.arrArr||new Float64Array(H),onHand:r.onHand||0,isLTO:!!r.isLTO,
-      basis:r.counted?'physical count':(r.adjusted?'system (adjusted in MAS)':'NetStock'),weekly:0,coverDays:9999,coverPO:9999,totPlan:0,planned:false,
+      basis:r.adjusted?'system (adjusted in MAS)':'NetStock',weekly:0,coverDays:9999,coverPO:9999,totPlan:0,planned:false,
       fgTop:'\u2014',floor:!!r.floor,cls:r.cls||null,orderBy:(r.orderBy!=null?r.orderBy:null),suggest:r.suggest||0,pallet:r.pallet||1900,incoming:r.incoming||0,lt:r.lt||28});
   }
   rows.sort((a,b)=>(b.planned-a.planned)||(b.totPlan-a.totPlan)||((b.onHand||0)-(a.onHand||0)));
@@ -3468,7 +3484,7 @@ function forecastData(){
     const pallet=row?row.pallet:(st?sizeOf(st.desc||desc).pallet:1900);
     const lt=row?row.lt:28;
     const arrArr=row?row.arrArr:new Float64Array(H);
-    const basis=row?(row.counted?'physical count':(row.adjusted?'system (adjusted in MAS)':'NetStock')):'NetStock';
+    const basis=row?(row.adjusted?'system (adjusted in MAS)':'NetStock'):'NetStock';
     // PO arrivals mapped into fiscal periods
     const poPer=new Array(NP).fill(0);
     for(let p=0;p<NP;p++){const P=FL[p];if(P.ed<T)continue;const so=Math.max(0,Math.round((P.sd-T)/DAY)),eo=Math.round((P.ed-T)/DAY);if(so>=H)break;for(let i=Math.max(0,so);i<=Math.min(H-1,eo);i++)poPer[p]+=arrArr[i]||0;}
@@ -3774,6 +3790,10 @@ function render(){
   const orderCanCodes=Object.keys(orderCanMap).filter(c=>!filterOn||baseCodes.has(c)).sort((a,b)=>orderCanMap[b]-orderCanMap[a]);
   // ---- all LTO items (flagged from BOM UDF_LTO) — informational list, shown in purple ----
   const ltoCansList=base.filter(x=>x.isLTO).sort((a,b)=>a.pr-b.pr||b.daily-a.daily);
+  // ---- physically counted cans (physical on-hand count on file) ----
+  const countedCans=base.filter(x=>x.counted&&x.cnt&&x.cnt.date);
+  const countedN=countedCans.length;
+  let countedDate='';if(countedN){const latest=countedCans.map(x=>x.cnt.date).sort((a,b)=>b-a)[0];countedDate=(latest.getMonth()+1)+'/'+latest.getDate();}
   const strip=`<div class="strip">${custNote}
     <div class="stitem ${dscList.length?'s-red':''}" data-goto="dsc"><b>${dscList.length}</b>talk to DSC</div>
     <div class="stitem ${allPOsView.length?'s-org':''}" data-goto="orders"><b>${allPOsView.length}</b>POs to place</div>
@@ -3784,6 +3804,7 @@ function render(){
     <div class="stitem ${expedites.length?'s-org':''}" data-goto="exped"><b>${expedites.length}</b>expedites</div>
     <div class="stitem ${outs.length?'s-red':''}" data-goto="status"><b>${outs.length}</b>stocked out</div>
     <div class="stitem" data-goto="ltos" style="${ltoCansList.length?'border-color:#d9c6f2':''}"><b style="color:var(--purple)">${ltoCansList.length}</b>LTOs</div>
+    <div class="stitem" title="Cans with a physical on-hand count on file — shown for reference; the board's on-hand math always uses the NetStock figure" style="${countedN?'border-color:#cfe0f5':''}"><b style="color:var(--blue)">${countedN}</b>📋 counted${countedDate?` · ${countedDate}`:''}</div>
     <div class="stitem" data-goto="ignored"><b>${stale.length}</b>ignored POs</div>
   </div>`;
 
@@ -3953,14 +3974,16 @@ function render(){
       <div class="ppgrouphd grn">4+ weeks covered — ${ok.length} can(s)</div>
       ${pd.missingFg&&pd.missingFg.length?`<div class="secnote" style="margin-top:8px">⚠️ ${pd.missingFg.length} plan item(s) not in the BOM: ${pd.missingFg.slice(0,10).join(', ')}${pd.missingFg.length>10?'…':''}</div>`:''}`;
   }
-  const transBody=`<div class="secnote"><b>Rolling transition</b> — the old can keeps its demand until its on-hand (plus already-placed POs) runs out, then the rest moves to the new can; the old can is never re-ordered. <b>Hard cut</b> — demand moves to the new can immediately. <b>Transition complete</b> — the new can fully owns the demand. When it's <b>not ready</b>, everything stays on the old can and it's ordered normally. Drop the transitions file any time — it updates instantly.</div>
+  const transBody=`<div class="secnote">The <b>only trigger is "Ready to order" = Yes</b> — then we start ordering the <b>new can</b> (<b>"Order placed" is ignored</b>). While ready but not yet complete it's <b>rolling</b>: the old can's on-hand is depleted first, then the new can is ordered for the rest. Once <b>"Transition complete" = Yes</b> (new BOM in place), the new can fully owns the demand. If "Ready to order" is still No, nothing changes — all demand stays on the <b>old can</b>. Drop the transitions file any time — it updates instantly.</div>
     ${transList.length?transList.map(tr=>{
       const m=transMode(tr);
-      const label=m==='off'?'<b style="color:#b06d00">not set — check old/new can codes</b>':(tr.complete?'<b style="color:#177245">complete — new can owns demand</b>':(m==='hard'?'<b style="color:#177245">hard cut — demand on new can now</b>':(tr.ready?'<b style="color:#2f5da8">rolling — deplete old, then new can</b>':'<b style="color:#b06d00">rolling — depleting old can (new can not ready to order yet)</b>')));
+      const valid=tr.oldCan&&tr.newCan&&tr.oldCan!==tr.newCan;
+      const flags=`Ready ${tr.ready?'✓':'✗'} · Complete ${tr.complete?'✓':'✗'}`;
+      const label=!valid?'<b style="color:#b06d00">not set — check old/new can codes</b>':(m==='hard'?`<b style="color:#177245">complete — new can owns demand</b> <span style="color:var(--faint)">(${flags})</span>`:(m==='roll'?`<b style="color:#2f5da8">rolling — deplete old, order new can</b> <span style="color:var(--faint)">(${flags})</span>`:`<b style="color:#b06d00">pending — not ready to order; demand stays on OLD can</b> <span style="color:var(--faint)">(${flags})</span>`));
       const active=m!=='off';
       return `<div class="ovrow">
         <div class="ov1"><span class="ovcan"><span class="mono canlink" data-can="${tr.oldCan}">${tr.oldCan}</span> <span style="color:var(--faint)">→</span> <span class="mono canlink" data-can="${tr.newCan}" style="color:#177245">${tr.newCan}</span></span>
-          <span class="ovamt">${tr.oldFg||tr.fg?((tr.oldFg||tr.fg)+(tr.newFg?' → '+tr.newFg:'')+' · '):''}${label}${tr.ordered?' · <b>order placed</b>':''}</span></div>
+          <span class="ovamt">${tr.oldFg||tr.fg?((tr.oldFg||tr.fg)+(tr.newFg?' → '+tr.newFg:'')+' · '):''}${label}</span></div>
         <div class="ovpos">${tr.desc||tr.newDesc||''}</div>
         ${active&&tr.newDaily>0?`<div class="ovswap">New can <b class="canlink" data-can="${tr.newCan}">${tr.newCan}</b> now carries ~<b>${fmt(Math.round(tr.newDaily))}</b> cans/day of demand · on hand ${fmt(Math.round(tr.newOnHand))}</div>`:''}
       </div>`;
@@ -4399,7 +4422,7 @@ function buildWorkedExample(){
       per!=null?`can demand = finished-good cases × ${fmt(per)}`:'can demand = FG cases × cans-per-case (BOM)'),
     step(2,'On hand today',
       `${N(x.onHand)} cans${x.incoming?` · plus ${N(x.incoming)} already on open POs`:''}.`,
-      `Where it comes from: ${x.counted?`a physical count on ${dstr(x.cnt.date)} (a fresh count that isn't yet adjusted in MAS wins over the system figure)`:'the NetStock system on-hand (no newer physical count on file)'}.`,
+      `Where it comes from: the <b>NetStock system on-hand</b>${x.counted&&x.cnt?` (a physical count of ${fmt(x.cnt.phys)} was taken ${dstr(x.cnt.date)} — shown for reference, not used in the math)`:''}.`,
       ''),
     step(3,'Demand — the three layers',
       `Firm PA ${N(L.pa||0)} · Production plan ${N(L.plan||0)} · Forecast ${N(L.fc||0)} cans (over 180 days).`,
@@ -4547,9 +4570,9 @@ function openModal(code){
       + soRows.slice(0,40).map(r=>`<tr><td>${r.date?dstr(r.date):'—'}</td><td><b>${r.fg}</b></td><td class="socust">${r.cust||'—'}</td><td class="num">${fmt(r.fgQty)}</td><td class="num">${fmt(Math.round(r.fgBefore))}</td><td class="num ${r.fgAfter<0?'neg':'pos'}">${fmt(Math.round(r.fgAfter))}</td><td class="num"><b>${fmt(r.canQty)}</b></td></tr>`).join('')
       + `<tr class="sot"><td colspan="6">Total firm PA can demand${soRows.length>40?' (top 40 shown)':''}</td><td class="num"><b>${fmt(soTotal)}</b></td></tr>`
     : '<tr><td colspan="7" style="color:var(--faint)">No firm PA sales orders map to this can — demand is forecast-driven.</td></tr>';
-  const inv=x.counted
-    ?`<tr><td>Physical count (${dstr(x.cnt.date)})</td><td>${fmt(x.cnt.phys)}</td></tr><tr><td>System at count</td><td>${fmt(x.cnt.sysAtCount)}</td></tr><tr><td>Variance</td><td class="${x.cnt.diff<0?'neg':'pos'}">${fmt(x.cnt.diff)}</td></tr><tr><td>System now</td><td>${fmt(x.sysOnHand)}</td></tr>`
-    :`<tr><td>System on hand</td><td>${fmt(x.sysOnHand)}</td></tr><tr><td colspan="2" style="color:var(--faint)">Not in latest count file.</td></tr>`;
+  const inv=x.counted&&x.cnt
+    ?`<tr><td>NetStock on hand <b>(used)</b></td><td><b>${fmt(x.sysOnHand)}</b></td></tr><tr><td>📋 Physical count (${dstr(x.cnt.date)})</td><td>${fmt(x.cnt.phys)}</td></tr><tr><td>Variance vs NetStock</td><td class="${x.cnt.diff<0?'neg':'pos'}">${x.cnt.diff>=0?'+':''}${fmt(x.cnt.diff)}</td></tr>`
+    :`<tr><td>NetStock on hand <b>(used)</b></td><td><b>${fmt(x.sysOnHand)}</b></td></tr><tr><td colspan="2" style="color:var(--faint)">No physical count on file.</td></tr>`;
   const key=`<tr><td>Need-by (incl. buffer)</td><td>${x.needBy!=null?dlong(addD(T,x.needBy)):'—'}</td></tr>
     <tr><td>Last day to order</td><td class="${x.orderBy!=null&&x.orderBy<=0?'neg':''}">${x.orderBy!=null?(x.orderBy<=0?'PAST DUE':dlong(addD(T,x.orderBy))):'—'}</td></tr>
     <tr><td>Run-out (with POs)</td><td>${x.runout!=null?dstr(addD(T,x.runout)):'none in 180d'}</td></tr>
@@ -4565,10 +4588,15 @@ function openModal(code){
     <div class="mbody">
       <div class="statstrip">
         <div class="statbox stat-oh">
-          <div class="sl">📦 Supply on hand</div>
+          <div class="sl">📦 Supply on hand · NetStock</div>
           <div class="sv">${fmt(x.onHand)}<small>cans</small></div>
-          <div class="ss">${x.counted?('physical count '+dstr(x.cnt.date)):'NetStock system figure'}${x.incoming?` · +${fmt(x.incoming)} on open POs`:''}</div>
+          <div class="ss">NetStock system figure — used for all planning${x.incoming?` · +${fmt(x.incoming)} on open POs`:''}</div>
         </div>
+        ${x.counted&&x.cnt?`<div class="statbox stat-phys">
+          <div class="sl">📋 Physical on hand</div>
+          <div class="sv">${fmt(x.cnt.phys)}<small>cans</small></div>
+          <div class="ss">counted ${dstr(x.cnt.date)} · ${x.cnt.diff>=0?'+':'−'}${fmt(Math.abs(x.cnt.diff))} vs NetStock${x.varFlag?' · ⚠ large variance':''} · reference only</div>
+        </div>`:''}
         ${(()=>{const dos=x.daily>0?x.onHand/x.daily:null;
           const cls=dos==null?'good':(dos<Math.max(7,x.bMin||0)?'bad':(dos<x.lt?'warn':'good'));
           const val=dos==null?'∞':(dos>=180?'180+':dos.toFixed(1));
@@ -4743,8 +4771,8 @@ function rowToExport(x){
   const basis=gap?'FIRM PA — NOT COVERED':(x.paFirst?'Firm PA — covered (forecast reorder)':'Forecast only (no firm PA)');
   return {
     'Status':CLSNAME[x.cls],'Can #':x.code,'Description':x.desc,'Supplier':x.supplier,'NetStock status':x.ns,
-    'On hand (used)':Math.round(x.onHand),'Basis':x.counted?('Physical '+dstr(x.cnt.date)):'System',
-    'System on hand':Math.round(x.sysOnHand),'Count variance':x.counted?Math.round(x.cnt.diff):null,
+    'On hand (used)':Math.round(x.onHand),'Basis':'NetStock',
+    'System on hand':Math.round(x.sysOnHand),'Physical count':x.counted&&x.cnt?Math.round(x.cnt.phys):null,'Counted on':x.counted&&x.cnt&&x.cnt.date?dstr(x.cnt.date):null,'Count variance vs NetStock':x.counted&&x.cnt?Math.round(x.cnt.diff):null,
     'Daily use':Math.round(x.daily),'Days of supply':x.dos===Infinity?null:Math.round(x.dos),
     'Need-by (incl buffer)':x.needBy!=null?dstr(addD(T,x.needBy)):'','Last day to order':x.orderBy!=null?(x.orderBy<=0?'PAST DUE':dstr(addD(T,x.orderBy))):'',
     'Run-out (with POs)':x.runout!=null?dstr(addD(T,x.runout)):'','Lead time (d)':x.lt,'Safety stock':Math.round(x.ss),
@@ -5166,7 +5194,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v65 · capability line (green) · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v70 · dossier: separate Physical OH block, on-hand = NetStock · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
