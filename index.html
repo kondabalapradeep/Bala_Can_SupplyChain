@@ -1029,6 +1029,7 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
         <li><b>Cans with no ounce size default to LARGE (13oz).</b> If a can's description has no "oz", it's planned as a big can (pallet 1,900, truck 95,000).</li>
         <li><b>Expedite + new PO together.</b> When a late inbound PO is expedited but still leaves the can below its cover target, the residual is <b>also placed as a new PO</b> — both actions are shown, not just the expedite.</li>
         <li><b>LTO rule.</b> LTO cans are ordered on firm PA + the production plan only; leftover forecast never triggers a callout (details below).</li>
+        <li><b>Committed plan is checked gross — including firm PA inside it.</b> The production plan is a confirmed build: the line consumes a can per case for the full plan, regardless of finished-goods (FG) stock OR of firm sales orders that sit inside the plan. Two things that used to quietly shrink the plan's can demand are now fixed — (a) FG on-hand no longer nets against the plan, and (b) firm PA that the plan already builds is counted in the plan layer instead of being carved out and then erased by FG on-hand. FG on-hand still nets forecast, and firm orders <i>beyond</i> the plan. Result: the dossier's "Production plan" coverage now equals the Consumption Planner grid, so the true shortfall is always flagged and ordered for (previously a plan could read "short 1,600" or even "covered" when the grid showed it short 17,000+ — worst on LTOs with FG stock).</li>
       </ol></div>
 
     <h3>📊 Board — the daily action list</h3>
@@ -1841,10 +1842,10 @@ function compute(){
     // ship-ahead: PA demand must be in-house SHIPAHEAD days before the ship date, so ALL demand timing uses (ship date − SHIPAHEAD). The true ship date is kept only for display.
     const elines=lines.map(l=>({qty:l.qty,cust:l.cust,date:l.date,edate:l.date?new Date(l.date.getTime()-SHIPAHEAD*DAY):null}));
     // ---- per-DAY demand as a PRIORITY STACK: ① firm PA ② production plan ③ forecast-beyond-plan ----
-    // Plan supersedes forecast where it exists (the plan is the real build — it already folds in FG on-hand, forecast
-    // and capacity/overproduction). Forecast fills periods/weeks the plan doesn't reach. PA is the firm portion of the build.
+    // Plan supersedes forecast where it exists (the plan is the committed build — cans are needed for every case it
+    // builds, gross, regardless of finished-goods stock). Forecast fills periods/weeks the plan doesn't reach. PA is the firm portion of the build.
     const rate=new Float64Array(H),paRate=new Float64Array(H),planRate=new Float64Array(H),fcRate=new Float64Array(H);
-    let hasFc=false,hasPA=false,hasPlan=false,lastEo=-1,lastFcR=0;
+    let hasFc=false,hasPA=false,hasPlan=false,lastEo=-1,lastFcR=0,paInPlanTot=0;
     const ltoFG=isLTOfg(fg);   // LTO finished goods are ordered on firm PA + production plan ONLY — forecast never drives their order callouts (it's still shown on the Forecast page). This stops LTOs from flagging "order now" when the 13-week plan already covers them.
     const f27=state.forecast27?state.forecast27[fg]:null;
     const FISCALFC=state.forecast27?FISCAL_ALL:FISCAL26;   // extend demand into 2027 periods only when a 2027 forecast is loaded
@@ -1859,20 +1860,28 @@ function compute(){
       let periodPA=0;for(const l of elines){if(l.edate&&l.edate>=P.sd&&l.edate<=P.ed)periodPA+=l.qty;}  // bucket PA by need-by (ship − ship-ahead)
       if(periodFcRaw>0&&!ltoFG)hasFc=true;if(planP>0)hasPlan=true;
       const base=Math.max(planP,periodPA);                                    // the committed build (plan, or firm PA if it exceeds the plan)
-      const planNet=Math.max(0,planP-periodPA);                               // plan build beyond the firm PA it already covers
+      paInPlanTot+=Math.min(planP,periodPA);                                  // firm PA that the committed plan already builds — belongs to the (gross) plan layer, not double-counted as PA
       const fcBeyond=ltoFG?0:Math.max(0,periodFcRaw-base);                    // forecast ONLY beyond the committed build (no double-count) — ZERO for LTO FGs so forecast never drives their orders
-      // plan → time-phased by its OWN weekly columns (matches the Consumption Plan page), scaled to net out firm PA
-      if(planP>0){const scale=planNet/planP;for(const w of pw){if(w.date>=P.sd&&w.date<=P.ed){const wd=Math.round((w.date-T)/DAY),r=(w.qty||0)/7*scale;for(let dd=wd;dd<wd+7;dd++){const idx=Math.max(0,dd);if(idx<H)planRate[idx]+=r;}}}}  // full week conserved (elapsed days pile onto today)
+      // plan → time-phased by its OWN weekly columns (matches the Consumption Plan page), GROSS: the committed build needs a can per case regardless of firm PA or finished-goods stock
+      if(planP>0){for(const w of pw){if(w.date>=P.sd&&w.date<=P.ed){const wd=Math.round((w.date-T)/DAY),r=(w.qty||0)/7;for(let dd=wd;dd<wd+7;dd++){const idx=Math.max(0,dd);if(idx<H)planRate[idx]+=r;}}}}  // full week conserved (elapsed days pile onto today)
       const fr=fullDays>0?fcBeyond/fullDays:0;for(let dd=d0;dd<=d1;dd++)fcRate[dd]+=fr;   // forecast-beyond spread across the period
       lastEo=d1;lastFcR=fr;
     }
     if(hasFc&&lastEo>=0&&lastEo<H-1)for(let dd=lastEo+1;dd<H;dd++)fcRate[dd]+=lastFcR;   // forecast tail rolls on; plan ends at its horizon
     for(const l of elines){if(l.qty>0){hasPA=true;const dd=l.edate?Math.round((l.edate-T)/DAY):0;const at=dd<0?0:(dd<H?dd:null);if(at!=null)paRate[at]+=l.qty;}}  // firm PA pulled ship-ahead days before ship date
+    // Remove the firm PA the committed plan already builds — it now lives in the (gross) plan layer. Only PA that EXCEEDS the
+    // plan (or has no plan behind it) stays on the PA layer, where finished-goods on-hand may cover it. This keeps the plan's
+    // can demand whole: firm PA sitting inside the plan can no longer be quietly erased by finished-goods stock.
+    for(let dd=0,rem=paInPlanTot;dd<H&&rem>0;dd++){const cut=Math.min(rem,paRate[dd]);paRate[dd]-=cut;rem-=cut;}
     const noForecast=!hasFc&&hasPA;
     if(!hasFc&&!hasPA&&!hasPlan)continue;
-    // FG on-hand covers demand in PRIORITY ORDER — PA first, then plan, then forecast
+    // FG on-hand covers demand PA first, then forecast — but NEVER the committed production plan.
+    // The plan is a confirmed build: to run a build the line consumes a can for every case, no matter how much
+    // finished product sits in the warehouse. So finished-goods on-hand ships firm orders and defers forecast building,
+    // but it does NOT reduce the cans the plan needs. (Netting it against the plan hid real plan shortfalls — e.g. an
+    // LTO with no PA/forecast would flip straight to "covered.") This keeps the board's plan layer gross = the grid.
     const qoh=pa?pa.qoh:0;let coh=qoh;
-    for(const L of [paRate,planRate,fcRate]){for(let dd=0;dd<H&&coh>0;dd++){const cov=Math.min(coh,L[dd]);L[dd]-=cov;coh-=cov;}}
+    for(const L of [paRate,fcRate]){for(let dd=0;dd<H&&coh>0;dd++){const cov=Math.min(coh,L[dd]);L[dd]-=cov;coh-=cov;}}
     for(let dd=0;dd<H;dd++)rate[dd]=paRate[dd]+planRate[dd]+fcRate[dd];
     let daily=0;for(let dd=0;dd<60;dd++)daily+=rate[dd];daily/=60;
     if(daily<=0)daily=rate.reduce((a,b)=>a+b,0)/H;
@@ -5214,7 +5223,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v74 · Help updated: LTO rule + changelog (physical count, transitions, trucks, expedite+PO) · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v76 · fix: firm PA inside the plan no longer erased by FG on-hand — plan demand stays whole (gross) · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
