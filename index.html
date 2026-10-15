@@ -944,7 +944,7 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
     <div class="set">Lead <input id="setLT" type="number" value="28">d</div>
     <div class="set">Prod. buffer <input id="setBuf" type="number" value="7">d</div>
     <div class="set" title="Firm PA demand is pulled in this many days BEFORE the ship date — the can must be in-house to build & ship on time (e.g. ships Sep 15 → needed in-house Sep 1). All run-out, need-by and order-by dates use ship date − this. Set 0 to use the ship date itself.">Ship-ahead <input id="setShipAhead" type="number" value="14">d</div>
-    <div class="set">Truck <input id="setTruck" type="number" value="95000"></div>
+    <div class="set" title="Truck = 50 pallet positions. 95,000 = 50 big (13oz) pallets of 1,900. Small (6oz) trucks hold the same 50 pallets = 114,000 cans (2,280 × 50), handled automatically.">Truck <input id="setTruck" type="number" value="95000"></div>
     <div class="set">Cover <input id="setCov" type="number" value="45">d</div>
     <div class="set" title="Global LOWER bound — days of supply to keep on hand for every can unless overridden">Min days <input id="setMinDOS" type="number" value="14">d</div>
     <div class="set" title="Global TARGET — order up to this many days of supply unless overridden">Ideal days <input id="setIdealDOS" type="number" value="45">d</div>
@@ -1021,6 +1021,16 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
     </div>
     <div class="rule" style="background:#eef4ff;border-color:#cfe0f5"><b>What this tool does.</b> It plans how many raw <b>cans</b> (item codes starting <code>12</code>) we need to buy from DSC, and when — by taking demand from three sources in priority order (firm sales orders → production plan → forecast), netting it against on-hand stock and open purchase orders, and flagging every can that needs an order, an expedite, or a swap. Every page below is a different lens on that same live calculation. <b>Click any can # on any page</b> to open its full dossier.</div>
 
+    <div class="rule" style="background:#f6f1fc;border-color:#d9c6f2"><b>🆕 Recent logic updates (Oct 2026)</b> — so the team shares one source of truth:
+      <ol style="margin:6px 0 0 18px;padding:0">
+        <li><b>Physical counts are reference-only.</b> The on-hand used for every calculation is always the <b>NetStock</b> figure; a physical count and its date are shown alongside (📋) with the variance, for spotting discrepancies — they never drive the math.</li>
+        <li><b>Item transitions fire on "Ready to order = Yes."</b> Order-placed is ignored. While ready-but-not-complete it rolls (deplete the old can first, order the new can for the rest); "Transition complete = Yes" switches the item fully to the new can.</li>
+        <li><b>Truck size is per-can.</b> A trailer holds <b>50 pallets</b>, so a big (13oz) truck = <b>95,000</b> cans and a small (6oz) truck = <b>114,000</b> cans (2,280 × 50). Orders bigger than a truck are split across trucks.</li>
+        <li><b>Cans with no ounce size default to LARGE (13oz).</b> If a can's description has no "oz", it's planned as a big can (pallet 1,900, truck 95,000).</li>
+        <li><b>Expedite + new PO together.</b> When a late inbound PO is expedited but still leaves the can below its cover target, the residual is <b>also placed as a new PO</b> — both actions are shown, not just the expedite.</li>
+        <li><b>LTO rule.</b> LTO cans are ordered on firm PA + the production plan only; leftover forecast never triggers a callout (details below).</li>
+      </ol></div>
+
     <h3>📊 Board — the daily action list</h3>
     <div class="rule"><b>What it shows:</b> every can grouped by urgency — stocked out, expedite, order now, this week, upcoming, covered — plus the ready-to-place PO list, POs to swap, and the "talk to DSC" list where firm PA is at risk. <b>How we use it:</b> this is the start-of-day screen. Work top-down: clear stockouts and expedites first, place the POs in the order list, action the swaps, then capture the day in the tracker. Filters at top (size, LTO, customer, and the policy inputs — lead, buffer, MOQ, truck, min/ideal/max days) apply everywhere.</div>
 
@@ -1051,6 +1061,9 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
     <h3>🔄 Item transitions (old can → new can)</h3>
     <div class="rule"><b>Transition gate — "Ready to order" drives it:</b> the moment <b>Ready to order = Yes</b>, we start ordering the <b>new can</b>. <b>Order placed (Yes/No) is ignored.</b> While ready but not yet complete the transition is <b>rolling</b> — the old can's on-hand is depleted first, then the new can is ordered for the rest (the old can is not re-ordered). Once <b>Transition complete = Yes</b> (the new BOM has been created), the new can <b>fully owns</b> the item's demand. If <b>Ready to order is still No</b>, nothing changes — all demand stays on the old can and it is ordered normally.</div>
 
+    <h3>🟣 LTO items (Limited Time Offers)</h3>
+    <div class="rule" style="background:#f6f1fc;border-color:#d9c6f2"><b>Bought once, up front — not reordered off forecast.</b> For an LTO we buy the whole run at the start (planned on the 🔮 Forecast page as the <b>B1/B2</b> two-buy split) and let it deplete. So on the Board an LTO can is <b>ordered on firm PA + the 13-week production plan only</b>: whatever forecast is left on it <b>never triggers an order callout</b> — it stays informational on the Forecast page. <b>But a shortfall still flags:</b> if <b>firm PA is not covered</b>, or the <b>production plan is not covered</b>, the LTO can is flagged and ordered exactly like any other can. The suggested quantity covers only that uncovered PA/plan — it is not padded with forecast runway. LTO cans are marked 🟣 purple everywhere, from the BOM's <code>UDF_LTO</code> flag (a combo counts as LTO if either variant is).</div>
+
     <h3 style="margin-top:18px;padding-top:6px;border-top:2px solid #e3e9f1">📖 Worked example — one can, every number explained</h3>
     <div class="rule" style="background:#fbf7ef;border-color:#ecdfba">This walks through a single real can from today's data, step by step, so a new team member can see exactly where each number comes from and how it turns into an order decision. Load your files and the example uses a live can; otherwise it shows an illustration.</div>
     <div id="sopWorked"><div class="rule" style="color:var(--dim)">Open this panel with data loaded to see a live worked example.</div></div>
@@ -1076,7 +1089,7 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
     <h3>Status boxes</h3>
     <ul>
       <li><b>Stocked out</b> — zero cans, consumption already running, nothing arriving within 3 days.</li>
-      <li><b>Expedite PO</b> — a PO exists but its first arrival lands <i>after</i> the need-by date: pull the PO in rather than ordering again.</li>
+      <li><b>Expedite PO</b> — a PO exists but its first arrival lands <i>after</i> the need-by date: pull the PO in. If pulling it in still leaves the can below its cover target, a new PO for the residual is also recommended.</li>
       <li><b>Order today</b> — last safe order day is today or already past.</li>
       <li><b>This week / Next week / Upcoming</b> — last safe order day in 1–7 / 8–14 / 15–28 days (or a NetStock flag).</li>
       <li><b>Covered</b> — no action inside the horizon.</li>
@@ -1105,12 +1118,12 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
     </ul>
     <h3>PO builder rules</h3>
     <ul>
-      <li>Every PO is one <b>full truck</b> (default <code>95,000</code> cans).</li>
-      <li>Every line is <b>at least the MOQ</b> and a <b>whole number of pallets</b> — <b>big (13oz) = 1,900</b> per pallet, <b>small (6oz) = 2,280</b> per pallet. Partial pallets are never sent, orders never fall below the MOQ, and <b>only same-size cans share a truck</b>.</li>
+      <li>A PO fills toward one <b>full truck</b> — a trailer holds <b>50 pallets</b>, so big (13oz) = <b>95,000</b> cans, small (6oz) = <b>114,000</b> cans. Orders larger than a truck are split across trucks.</li>
+      <li>Every line is <b>at least the MOQ</b> and a <b>whole number of pallets</b> — <b>big (13oz) = 1,900</b> per pallet, <b>small (6oz) = 2,280</b> per pallet. Partial pallets are never sent, orders never fall below the MOQ, and <b>only same-size cans share a truck</b>. A can whose description has <b>no ounce size is treated as big (13oz)</b>.</li>
       <li>Needs are packed in queue priority order; one item can span multiple POs, and one PO can mix items.</li>
       <li>A short final truck is <b>topped up by pulling next week's needs forward</b> (lines tagged PULLED FWD). If nothing can be pulled, the truck is marked PARTIAL — top it up or hold it.</li>
       <li><b>POs to place now</b> = contain items whose last order day is ≤ 2 days out; <b>next week</b> = 3–14 days.</li>
-      <li>Expedite items are excluded (their fix is the existing PO); swap-covered quantity is deducted first.</li>
+      <li><b>Expedite + new PO together:</b> a can with a late inbound PO is expedited — but if pulling that PO in still leaves it below its cover target, the <b>residual is also placed as a new PO</b> (the line is tagged "⚡ also expedite PO ####"). Only when the inbound PO fully reaches the target is no new PO placed. Swap-covered quantity is deducted first.</li>
     </ul>
     <h3>Swap decisions — the DSC round-trip</h3>
     <div class="rule">Swaps here are <b>proposals</b> until DSC agrees. Export the <b>Swap decision template</b> from the swaps section, have DSC mark each row <b>YES</b> or <b>NO</b> in the Decision column, and drop the file back onto the board (✅ Swap Decisions tile). YES rows lock in and show <b>✔ CONFIRMED BY DSC</b>. NO rows stay visible with a red <b>✖ NO — DECLINED BY DSC</b> indicator: the board then <b>recommends the next-best donor PO</b> as an <b>↻ ALTERNATIVE PO</b> (clearly marked, with the declined PO named on the card), or — if no other covered PO qualifies — the urgent can's need automatically flows into the new-PO plan, where the line is tagged <b>⇄ swap declined by DSC → new PO</b> so you can trace exactly where it went. A declined donor PO is never proposed again, even across repeated decision uploads (decisions merge, they don't overwrite). Blank rows stay proposed. Removing the file (✕ on the tile) returns everything to proposed.</div>
@@ -1163,10 +1176,14 @@ const dlong=d=>d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day
 function sizeOf(desc){
   const m=String(desc||'').match(/(\d+(?:\.\d+)?)\s*oz/i);
   const oz=m?parseFloat(m[1]):null;
-  if(oz==null)return {oz:null,size:null,pallet:null};
+  if(oz==null)return {oz:null,size:'big',pallet:1900,sizeAssumed:true}; // no oz in description → treat as LARGE (13oz) can · big pallet 1,900
   const size=oz<10?'sm':'big';                 // ~6/6.5oz = small, ~13/13.5oz = big
   return {oz,size,pallet:size==='sm'?2280:1900}; // small pallet 2,280 · big pallet 1,900
 }
+// A trailer holds a fixed number of PALLET POSITIONS (not a fixed can count). The Truck setting (95,000 = 50 big pallets)
+// defines those positions; a small-can truck therefore holds the SAME 50 pallets = 114,000 cans (2,280 × 50).
+function truckSlots(){const T=+(($('#setTruck')||{}).value)||95000;return Math.max(1,Math.round(T/1900));} // ≈50 pallet positions
+function truckCap(pallet){return (pallet===2280?2280:1900)*truckSlots();}  // only two real sizes exist — small 114,000, everything else big 95,000 (guards against a stray non-pallet value inflating a truck)
 function roundPallet(q,pallet,moq){
   if(q<=0)return 0;
   const floor=moq||0;
@@ -2039,7 +2056,7 @@ function compute(){
       else{const eb=needByOH!=null?needByOH:0;expedite={po:pos[0],by:eb,late:firstArr-eb};}
     }
     let suggest=0,trucks=0;
-    if(runout!=null){suggest=rPallet(rawNeed,sz.pallet);trucks=suggest/TRUCK;}
+    if(runout!=null){suggest=rPallet(rawNeed,sz.pallet);trucks=suggest/truckCap(sz.pallet);}
     if(transOut.has(code)){suggest=0;trucks=0;rawNeed=0;}   // old can in an active transition — run it down, never re-order it
     let cls,pr;
     const nsFlag=/stocked out|potential/i.test(st.ns);
@@ -2168,7 +2185,10 @@ function compute(){
   // ---- PO builder: priority-ranked, whole-PALLET lines, size-separated trucks, dated ----
   const needs=[];
   for(const u of queue){
-    if(u.cls==='exp')continue; // handled by expediting existing PO
+    // Expedite-class cans are NOT skipped. Pulling in the existing late PO fixes TIMING, but if that PO still leaves the
+    // can below the cover target, u.suggest (already net of EVERY open PO) is the residual to place as a NEW order — so a
+    // can can both "expedite PO ####" AND get a fresh PO for the rest. Zero-residual expedite cans fall out at the
+    // whole-pallet guard below, so they correctly get no new order.
     const pal=u.pallet||MOQ;
     let remaining=u.suggest-(u.swapWith?Math.min(u.swapWith.p.qty,u.suggest):0);
     remaining=remaining<=0?0:Math.ceil(remaining/pal)*pal; // whole pallets only — no partial pallet
@@ -2176,7 +2196,7 @@ function compute(){
     needs.push({code:u.code,desc:u.desc,qty:remaining,orderBy:u.orderBy,needBy:(u.needBy==null?999:u.needBy),lead:u.lt||28,pa:u.paFirst?1:0,floor:u.floor,daily:u.daily,onHand:u.onHand,size:u.size||null,pallet:pal});
   }
   needs.sort((a,b)=>(a.needBy-b.needBy)||(b.pa-a.pa)||b.qty-a.qty);
-  const perTruckOf=pal=>Math.max(pal,Math.floor(TRUCK/pal)*pal); // whole pallets that fit in a 95,000 truck
+  const perTruckOf=pal=>truckCap(pal); // whole pallet positions per truck — big 95,000 (50×1,900) · small 114,000 (50×2,280)
   const chunksOf=(q,pal)=>{const out=[];const pt=perTruckOf(pal);while(q>0){if(q<=pt){out.push(q);q=0;}else{out.push(pt);q-=pt;}}return out;};
   const fullTrucks=[],parts=[];
   for(const n of needs){
@@ -2217,7 +2237,7 @@ function actionOf(x){
   const T=today();
   const noFc=x.paOnly?' · ⚠️ no forecast — sales-order-only, confirm':'';
   if(x.cls==='out')return{t:`OUT OF STOCK — ${x.pos.length?`expedite PO ${x.pos[0].po} immediately`:`place ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trucks) today & request expedite`}`,c:'a-red'};
-  if(x.cls==='exp')return{t:`EXPEDITE PO ${x.expedite.po.po} → arrive by ${dstr(addD(T,x.expedite.by))} (due ${dstr(x.expedite.po.date)}, ${x.expedite.late}d late)`,c:'a-org'};
+  if(x.cls==='exp')return{t:`EXPEDITE PO ${x.expedite.po.po} → arrive by ${dstr(addD(T,x.expedite.by))} (due ${dstr(x.expedite.po.date)}, ${x.expedite.late}d late)${x.suggest&&x.suggest>=(x.pallet||1)?` <b>+ PLACE NEW PO ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trk)</b> — the PO alone still leaves it short of your cover target`:''}`,c:'a-org'};
   if(x.cls==='now')return{t:`PLACE ORDER TODAY — ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trk), in-house by ${dstr(addD(T,x.needBy))}${x.orderBy<0?` · ${-x.orderBy}d behind lead time — request expedite`:''}${noFc}`,c:'a-red'};
   if(x.cls==='wk')return{t:`ORDER BY ${dlong(addD(T,x.orderBy))} — ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trk)`,c:'a-amb'};
   if(x.cls==='nx')return{t:`ORDER NEXT WEEK (by ${dstr(addD(T,x.orderBy))}) — ${fmt(x.suggest)} (≈${x.trucks.toFixed(1)} trk)`,c:'a-blu'};
@@ -2298,7 +2318,7 @@ function whyOf(x){
   }
   if(x.expLocked)li.push(`🔒 <b>An open PO arrives after this can needs cans, but it's DSC-committed (due on/before the lock date)</b> — it can't be pulled in. Talk to DSC about the lock, or place a bridging order to cover until it lands.`);
   if(x.ns)li.push(`NetStock status: <b>${x.ns}</b>${x.ss?` · safety stock ${fmt(x.ss)} cans`:''}.`);
-  if(x.suggest)li.push(`Suggested buy: <b>${fmt(x.suggest)} cans (≈${x.trucks.toFixed(1)} trucks)</b> to cover ${+$('#setCov').value||45} days past run-out${x.pallet?` — at least the <b>${fmt(+$('#setMOQ').value||15200)} MOQ</b>, rounded up to whole <b>${x.size==='sm'?'small (6oz)':'big (13oz)'}</b> pallets of ${fmt(x.pallet)} (no partial pallets)`:''}; only same-size cans share a truck when filling toward ${fmt(+$('#setTruck').value||95000)}.`);
+  if(x.suggest)li.push(`Suggested buy: <b>${fmt(x.suggest)} cans (≈${x.trucks.toFixed(1)} trucks)</b> to cover ${+$('#setCov').value||45} days past run-out${x.pallet?` — at least the <b>${fmt(+$('#setMOQ').value||15200)} MOQ</b>, rounded up to whole <b>${x.size==='sm'?'small (6oz)':'big (13oz)'}</b> pallets of ${fmt(x.pallet)} (no partial pallets)`:''}; only same-size cans share a truck when filling toward ${fmt(truckCap(x.pallet))}${x.size==='sm'?' (small truck = 50 pallets)':''}.`);
   return li;
 }
 const plain=h=>h.replace(/<[^>]+>/g,'');
@@ -2879,7 +2899,7 @@ function orderSchedule(x){
       let bal=x.onHand,dip=null;for(let d=0;d<H;d++){bal+=arrivals[d]-dem[d];if(d>orders[i].needBy&&bal<safety){dip=d;break;}}
       orders[i].coversUntil=dip;orders[i].coversLabel=dip==null?'beyond 180 days':null;
     }
-    orders[i].trucks=orders[i].qty/TRUCK;
+    orders[i].trucks=orders[i].qty/truckCap(x.pallet);
   }
   return orders;
 }
@@ -3811,10 +3831,10 @@ function render(){
   // ---- 1. POs to place ----
   const poCard=p=>`<div class="scard ${p.partial?'partial':''}">
     <div class="sch"><b>${p.id}</b><span class="scby">${p.placeBy<=0?'place TODAY':'place by '+dstr(addD(T,p.placeBy))}</span><span class="scneed">📌 needed by ${dstr(addD(T,p.needBy))}</span><span class="scarr ${p.arrive>p.needBy?'late':''}">🚚 arrive by ${dstr(addD(T,p.arrive))}${p.arrive>p.needBy?` · ${p.arrive-p.needBy}d late — expedite`:''}</span><span class="sctot">${fmt(p.total)} cans${p.partial?' · PARTIAL TRUCK':''}</span></div>
-    ${p.lines.map(l=>{const cov=l.daily>0?Math.round(l.qty/l.daily):null;const dosAfter=l.daily>0?Math.round((l.onHand+l.qty)/l.daily):null;
-      return `<div class="scl${(state.rows.find(r=>r.code===l.code)||{}).isLTO?' ltorow':''}" data-c="${l.code}"><span class="mono">${l.code}</span>${ltoTag(l.code)}<span class="scd">${l.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}${dosTag(l.code)}${declinedCodes.has(l.code)?' <span class="fromdec">⇄ swap declined by DSC → new PO</span>':''}${cov!=null?` <i class="cvdays">covers ~${cov}d · DOS after ≈ ${dosAfter}d</i>`:''}</span><span class="scq">${fmt(l.qty)}</span></div>`;}).join('')}
+    ${p.lines.map(l=>{const cov=l.daily>0?Math.round(l.qty/l.daily):null;const dosAfter=l.daily>0?Math.round((l.onHand+l.qty)/l.daily):null;const rr=state.rows.find(r=>r.code===l.code)||{};const expTag=(rr.cls==='exp'&&rr.expedite)?` <span class="fromdec" style="background:#fdeccd;border-color:#eaba6a;color:#8a5a12">⚡ also expedite PO ${rr.expedite.po.po} — this new PO tops up to target</span>`:'';
+      return `<div class="scl${rr.isLTO?' ltorow':''}" data-c="${l.code}"><span class="mono">${l.code}</span>${ltoTag(l.code)}<span class="scd">${l.desc.replace(/^PK-A-?\s?CAN[- ]?/i,'')}${dosTag(l.code)}${expTag}${declinedCodes.has(l.code)?' <span class="fromdec">⇄ swap declined by DSC → new PO</span>':''}${cov!=null?` <i class="cvdays">covers ~${cov}d · DOS after ≈ ${dosAfter}d</i>`:''}</span><span class="scq">${fmt(l.qty)}</span></div>`;}).join('')}
   </div>`;
-  const ordersBody=`${allPOsView.length?`<div class="secnote">POs are <b>ranked by priority</b> (soonest need first). Each shows the date to <b>place</b> it, the date the cans are <b>needed by</b> (to stay above your Min days), and the date it will <b>arrive</b> at DSC's standard ${(+$('#setLT').value||28)}-day lead. If arrive is after needed-by, it's flagged <b>late — request an expedite or pull DSC floor stock</b>. Every line is <b>at least the MOQ (${fmt(MOQ)})</b> and a <b>whole number of pallets</b> (big/13oz = 1,900 · small/6oz = 2,280) — no partial pallets — and only <b>same-size cans share a truck</b>; trucks fill toward ${fmt(+$('#setTruck').value||95000)}.</div>`:''}
+  const ordersBody=`${allPOsView.length?`<div class="secnote">POs are <b>ranked by priority</b> (soonest need first). Each shows the date to <b>place</b> it, the date the cans are <b>needed by</b> (to stay above your Min days), and the date it will <b>arrive</b> at DSC's standard ${(+$('#setLT').value||28)}-day lead. If arrive is after needed-by, it's flagged <b>late — request an expedite or pull DSC floor stock</b>. Every line is <b>at least the MOQ (${fmt(MOQ)})</b> and a <b>whole number of pallets</b> (big/13oz = 1,900 · small/6oz = 2,280) — no partial pallets — and only <b>same-size cans share a truck</b>; a trailer holds <b>50 pallets</b>, so trucks fill toward <b>${fmt(truckCap(1900))}</b> for big (13oz) and <b>${fmt(truckCap(2280))}</b> for small (6oz).</div>`:''}
     <div class="pocol">${allPOsView.map(poCard).join('')||'<div class="emptyrow">No new POs needed — current stock, POs, swaps and expedites cover everything.</div>'}</div>
     ${allPOsView.length?`<button class="btn ghost secexp" data-x="plan">⬇ Export PO list</button>`:''}`;
 
@@ -5194,7 +5214,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v70 · dossier: separate Physical OH block, on-hand = NetStock · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v74 · Help updated: LTO rule + changelog (physical count, transitions, trucks, expedite+PO) · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
