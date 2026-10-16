@@ -363,6 +363,18 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .pwk td.neg{color:var(--red);font-weight:800}
 .pwk td.pos{color:var(--green);font-weight:700}
 .pwk tr:last-child td{border-bottom:none}
+.pwk td.rec,.pwk .pwk-tot.rec{color:var(--purple);font-weight:800}
+.pwk tr.pwk-rec td{background:#f6f1fc}
+.cttbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+.cttbl .cthd th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);border-bottom:1px solid var(--line);padding:5px 8px}
+.cttbl th.num,.cttbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+.cttbl td{padding:5px 8px;border-bottom:1px solid #f2f2f2}
+.cttbl .mono{font-family:var(--mono);font-weight:700}
+.cttbl td.neg{color:var(--red);font-weight:700}
+.cttbl td.pos{color:var(--green);font-weight:700}
+.cttbl .ctrow{cursor:pointer}
+.cttbl .ctrow:hover{background:#f7fafc}
+.cttbl .cttot td{border-top:2px solid var(--line);border-bottom:none;font-weight:800;color:var(--ink);background:#f7fafc}
 .pwkUnitbar{display:inline-flex;gap:0;margin-bottom:7px;border:1px solid var(--line);border-radius:999px;overflow:hidden}
 .pwkUnitBtn{font-size:11px;font-weight:700;padding:4px 12px;border:none;background:#fff;color:var(--dim);cursor:pointer}
 .pwkUnitBtn.on{background:var(--blue);color:#fff}
@@ -3864,7 +3876,7 @@ function render(){
     <div class="stitem ${expedites.length?'s-org':''}" data-goto="exped"><b>${expedites.length}</b>expedites</div>
     <div class="stitem ${outs.length?'s-red':''}" data-goto="status"><b>${outs.length}</b>stocked out</div>
     <div class="stitem" data-goto="ltos" style="${ltoCansList.length?'border-color:#d9c6f2':''}"><b style="color:var(--purple)">${ltoCansList.length}</b>LTOs</div>
-    <div class="stitem" title="Cans with a physical on-hand count on file — shown for reference; the board's on-hand math always uses the NetStock figure" style="${countedN?'border-color:#cfe0f5':''}"><b style="color:var(--blue)">${countedN}</b>📋 counted${countedDate?` · ${countedDate}`:''}</div>
+    <div class="stitem" data-goto="counts" title="Cans with a physical on-hand count on file — click to see physical vs NetStock and the total variance; the board's on-hand math always uses the NetStock figure" style="${countedN?'border-color:#cfe0f5':''}"><b style="color:var(--blue)">${countedN}</b>📋 counted${countedDate?` · ${countedDate}`:''}</div>
     <div class="stitem" data-goto="ignored"><b>${stale.length}</b>ignored POs</div>
   </div>`;
 
@@ -3996,6 +4008,19 @@ function render(){
       <div class="val" style="color:var(--faint)">${fmt(s.p.qty)}<small>${s.why==='stale'?s.overdueDays+'d late':'remnant'}</small></div></div>`).join('')||'<div class="emptyrow">System is clean.</div>'}
     ${stale.length?`<button class="btn ghost secexp" data-x="stale">⬇ Export cleanup list</button>`:''}`;
 
+  // ---- physical count vs NetStock (system / MAS) on-hand ----
+  const countsSorted=[...countedCans].sort((a,b)=>Math.abs((b.cnt.diff)||0)-Math.abs((a.cnt.diff)||0));
+  const totCPhys=countedCans.reduce((a,x)=>a+(x.cnt.phys||0),0);
+  const totCSys=countedCans.reduce((a,x)=>a+(x.sysOnHand||0),0);
+  const totCVar=countedCans.reduce((a,x)=>a+(x.cnt.diff||0),0);
+  const totCAbs=countedCans.reduce((a,x)=>a+Math.abs(x.cnt.diff||0),0);
+  const countsBody=`<div class="secnote">Every can with a <b>physical count</b> on file, next to the <b>NetStock (system) on-hand</b> the board actually plans on. <b>Variance = physical − NetStock</b>; ⚠ marks a large gap (&gt;10% or &gt;5,000). Counts are <b>reference only</b> — they never change the planning math, so use this to spot and reconcile discrepancies in the system. <b>Net variance across all counts: <span class="${totCVar<0?'':''}" style="color:${totCVar<0?'var(--red)':'var(--green)'}">${totCVar>=0?'+':''}${fmt(Math.round(totCVar))}</span> cans</b> · total absolute gap <b>${fmt(Math.round(totCAbs))}</b>. Click any row for the can's dossier.</div>
+    <table class="cttbl"><tr class="cthd"><th>Can #</th><th>Description</th><th>Counted</th><th class="num">NetStock (system)</th><th class="num">Physical</th><th class="num">Variance</th></tr>
+    ${countsSorted.map(x=>{const v=x.cnt.diff||0;const flag=Math.abs(v)>Math.max((x.sysOnHand||0)*0.1,5000);return `<tr class="ctrow" data-c="${x.code}"><td class="mono">${x.code}${x.isLTO?' 🟣':''}</td><td>${(x.desc||'').replace(/^PK-A-?\s?CAN[- ]?/i,'').slice(0,34)}</td><td>${dstr(x.cnt.date)}</td><td class="num">${fmt(Math.round(x.sysOnHand||0))}</td><td class="num">${fmt(Math.round(x.cnt.phys||0))}</td><td class="num ${v<0?'neg':(v>0?'pos':'')}"><b>${v>=0?'+':''}${fmt(Math.round(v))}</b>${flag?' ⚠':''}</td></tr>`;}).join('')||'<tr><td colspan="6" style="color:var(--faint);padding:8px">No physical counts on file — drop the Can Inv Count file onto the board.</td></tr>'}
+    <tr class="cttot"><td colspan="3">Total · ${countedN} counted</td><td class="num">${fmt(Math.round(totCSys))}</td><td class="num">${fmt(Math.round(totCPhys))}</td><td class="num" style="color:${totCVar<0?'var(--red)':'var(--green)'}">${totCVar>=0?'+':''}${fmt(Math.round(totCVar))}</td></tr>
+    </table>
+    ${countedN?`<button class="btn ghost secexp" data-x="counts">⬇ Export count variances</button>`:''}`;
+
   // ---- 7. all cans by status ----
   const statusBody=`<div class="statgrid">${PANELS.map(p=>{
     const rs=base.filter(p.f);
@@ -4085,6 +4110,7 @@ function render(){
     +sec('pool','🟢','Swappable PO pool','var(--green)',swapsPool.length,'POs',`${fmt(swapsPool.reduce((a,s)=>a+s.p.qty,0))} cans available to trade`,poolBody,false)
     +sec('coman','🤝','Co-manufacturing — inventory band','#2f5da8',comanCans.length,'cans',`held to ${state.comanMin}–${state.comanMax} days · ${comanCans.filter(x=>x.bandStatus==='below').length} below min, ${comanCans.filter(x=>x.bandStatus==='over').length} over max`,comanBody,comanCans.some(x=>x.bandStatus==='below'))
     +sec('ignored','🗑','Ignored POs — stale & short-ships','var(--faint)',stale.length,'lines',`${fmt(stale.reduce((a,s)=>a+s.p.qty,0))} cans of dead supply to clear`,staleBody,false)
+    +(countedN?sec('counts','📋','Physical count vs NetStock','var(--blue)',countedN,'counted',`net variance ${totCVar>=0?'+':''}${fmt(Math.round(totCVar))} cans · abs gap ${fmt(Math.round(totCAbs))} · latest ${countedDate}`,countsBody,false):'')
     +sec('status','📦','All cans by status','var(--blue)',base.length,'cans','stocked out · order timing · variances · covered',statusBody,false)
     +(state.prodPlan?sec('prodcov','🏭','Production plan — coverage risk','#b06d00',ppAtRisk,'at risk',`${ppTotalCans} plan cans · ${ppAtRisk} under 2 wk · ${ppSoon} 2–4 wk`,ppCardBody,ppAtRisk>0):'')
     +(transList.length?sec('trans','🔄','Item transitions — old can → new can','#2f5da8',transActive,'active',`${transList.length} mapped · ${transActive} active (rolling / hard cut / complete)`,transBody,false):'')
@@ -4095,7 +4121,7 @@ function render(){
   document.querySelectorAll('.canlink[data-can]').forEach(el=>el.onclick=e=>{e.stopPropagation();if(state.rows.some(r=>r.code===el.dataset.can))openModal(el.dataset.can);else toast('No details for '+el.dataset.can+' yet (no stock or demand on file)');});
   document.querySelectorAll('.stitem').forEach(el=>el.onclick=()=>{state.sec[el.dataset.goto]=true;render();setTimeout(()=>{const t=document.querySelector(`[data-sec="${el.dataset.goto}"]`);if(t)t.scrollIntoView({behavior:'smooth',block:'start'});},50);});
   document.querySelectorAll('[data-tog]').forEach(el=>el.onclick=()=>{state.expanded[el.dataset.tog]=!state.expanded[el.dataset.tog];render();});
-  document.querySelectorAll('.prow,.qrow,.scl[data-c]').forEach(el=>el.onclick=e=>{e.stopPropagation();if(el.dataset.c)openModal(el.dataset.c);});
+  document.querySelectorAll('.prow,.qrow,.scl[data-c],.ctrow[data-c]').forEach(el=>el.onclick=e=>{e.stopPropagation();if(el.dataset.c)openModal(el.dataset.c);});
   document.querySelectorAll('[data-exp]').forEach(el=>el.onclick=e=>{e.stopPropagation();const p=PANELS.find(pp=>pp.k===el.dataset.exp);exportRows(base.filter(p.f),'Cans_'+p.t.replace(/\W+/g,'_'));});
   document.querySelectorAll('.secexp').forEach(el=>el.onclick=e=>{e.stopPropagation();
     const k=el.dataset.x;
@@ -4107,6 +4133,7 @@ function render(){
     else if(k==='prodcovexp')exportProdPlan();
     else if(k==='trackcap')captureSnapshot();else if(k==='trackexp')exportTracker();else if(k==='trackclear')clearTracker();
     else if(k==='exped')exportRows(expedites,'Cans_Expedite');
+    else if(k==='counts')exportCounts();
     else if(k==='ordercans')exportOrderCans();});
   const act=state.rows.filter(x=>x.active&&['out','exp','now'].includes(x.cls)).length;
   const totalInFile=Object.keys(state.stock||{}).length;
@@ -4637,21 +4664,30 @@ function openModal(code){
     const pr=pd.rows.find(r=>r.code===x.code);
     if(!pr||!pr.planned)return '';                     // only cans actually on the 13-week plan
     const weeks=ppWeekDates(T);if(!weeks.length)return '';
-    let bal=pr.onHand,totBuild=0,totPO=0;
+    // recommended order (purple) — the suggested buy, landing in the week it must be in-house by
+    const recQty=(x.suggest&&x.suggest>0)?x.suggest:0;
+    let recIdx=-1;
+    if(recQty>0){const arrAt=addD(T,Math.max(0,x.needBy!=null?x.needBy:0));for(let i=0;i<weeks.length;i++){if(arrAt<=addD(weeks[i].sd,6)){recIdx=i;break;}}if(recIdx<0)recIdx=weeks.length-1;}
+    let bal=pr.onHand,bal2=pr.onHand,totBuild=0,totPO=0;
     const cells=[];
-    for(const w of weeks){
+    weeks.forEach((w,i)=>{
       const need=pr.wk.get(+w.date)||0;
       const s0=Math.max(0,Math.round((w.sd-T)/DAY)),e0=Math.max(0,Math.round((addD(w.sd,6)-T)/DAY));
-      let po=0;for(let i=s0;i<=e0;i++)po+=(pr.arrArr[i]||0);
-      const end=bal-need+po;bal=end;totBuild+=need;totPO+=po;
-      cells.push({label:dstr(w.sd),need,po,end});
-    }
+      let po=0;for(let k=s0;k<=e0;k++)po+=(pr.arrArr[k]||0);
+      const rec=(i===recIdx)?recQty:0;
+      const end=bal-need+po;bal=end;
+      const end2=bal2-need+po+rec;bal2=end2;
+      totBuild+=need;totPO+=po;
+      cells.push({label:dstr(w.sd),need,po,end,rec,end2});
+    });
     const hasPO=totPO>0;
     const hdr=`<th class="pwk-lbl">Week of</th>`+cells.map(c=>`<th>${c.label}</th>`).join('')+`<th class="pwk-tot">Horizon</th>`;
     const buildRow=`<td class="pwk-lbl">🏭 Build need</td>`+cells.map(c=>`<td>${c.need>0?fmt(Math.round(c.need)):'—'}</td>`).join('')+`<td class="pwk-tot"><b>${fmt(Math.round(totBuild))}</b></td>`;
     const poRow=hasPO?`<tr><td class="pwk-lbl">+ PO in</td>`+cells.map(c=>`<td class="${c.po>0?'pos':''}">${c.po>0?'+'+fmt(Math.round(c.po)):'—'}</td>`).join('')+`<td class="pwk-tot pos">+${fmt(Math.round(totPO))}</td></tr>`:'';
-    const endRow=`<td class="pwk-lbl">End bal</td>`+cells.map(c=>`<td class="${c.end<0?'neg':'pos'}"><b>${fmt(Math.round(c.end))}</b></td>`).join('')+`<td class="pwk-tot ${bal<0?'neg':'pos'}"><b>${fmt(Math.round(bal))}</b></td>`;
-    return `<div class="pwk-wrap"><table class="pwk"><tr class="pwk-hd">${hdr}</tr><tr>${buildRow}</tr>${poRow}<tr class="pwk-end">${endRow}</tr></table></div>`;
+    const endRow=`<td class="pwk-lbl">End bal${recQty>0?' <span style="font-weight:600;color:var(--faint)">(before order)</span>':''}</td>`+cells.map(c=>`<td class="${c.end<0?'neg':'pos'}"><b>${fmt(Math.round(c.end))}</b></td>`).join('')+`<td class="pwk-tot ${bal<0?'neg':'pos'}"><b>${fmt(Math.round(bal))}</b></td>`;
+    const recRow=recQty>0?`<tr class="pwk-rec"><td class="pwk-lbl">🛒 Recommended order</td>`+cells.map(c=>`<td class="${c.rec>0?'rec':''}">${c.rec>0?'+'+fmt(Math.round(c.rec)):'—'}</td>`).join('')+`<td class="pwk-tot rec"><b>+${fmt(Math.round(recQty))}</b></td></tr>`:'';
+    const end2Row=recQty>0?`<tr class="pwk-end"><td class="pwk-lbl">✓ End bal + order</td>`+cells.map(c=>`<td class="${c.end2<0?'neg':'pos'}"><b>${fmt(Math.round(c.end2))}</b></td>`).join('')+`<td class="pwk-tot ${bal2<0?'neg':'pos'}"><b>${fmt(Math.round(bal2))}</b></td></tr>`:'';
+    return `<div class="pwk-wrap"><table class="pwk"><tr class="pwk-hd">${hdr}</tr><tr>${buildRow}</tr>${poRow}<tr${recQty>0?'':' class="pwk-end"'}>${endRow}</tr>${recRow}${end2Row}</table></div>`;
   })();
   // ---- finished-goods projection (can-equivalents): build RAISES FG, firm PA ships DEPLETE it. Shows whether the plan
   // builds enough FG to cover the orders — red FG-end = the plan is short of firm orders (a planning gap, not a can gap). ----
@@ -4744,7 +4780,7 @@ function openModal(code){
              <div class="mh" style="margin-top:14px">Open purchase orders</div><table class="mt">${pos}</table></div>
       </div>
       ${planWk?`<div class="mh" style="margin-top:16px">🏭 Production plan — weekly build for this can</div>
-      <div style="font-size:10.5px;color:var(--faint);margin:-2px 0 6px"><b>Build need</b> = the plan's cases × BOM cans-per-case, week by week (laid out like the production-plan file). <b>End bal</b> = the running <b>can</b> on-hand after each week (− build + PO arrivals), starting from today's NetStock on-hand; <span style="color:var(--red)">red</span> = projected short of <b>cans</b>. Ties to the Consumption Planner grid.</div>
+      <div style="font-size:10.5px;color:var(--faint);margin:-2px 0 6px"><b>Build need</b> = the plan's cases × BOM cans-per-case, week by week (laid out like the production-plan file). <b>End bal</b> = the running <b>can</b> on-hand after each week (− build + PO arrivals), starting from today's NetStock on-hand; <span style="color:var(--red)">red</span> = projected short of <b>cans</b>. The <b style="color:var(--purple)">🛒 recommended order</b> (purple) is the suggested buy, shown in the week it lands — the <b>✓ End bal + order</b> row shows the balance once it arrives. Ties to the Consumption Planner grid.</div>
       ${planWk}
       ${fgProj}`:''}
       <div class="mh" style="margin-top:16px">Sales orders (firm PA) driving this can</div>
@@ -5166,6 +5202,24 @@ function exportOverorder(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Over-ordered & swaps');
   XLSX.writeFile(wb,'Can_Overordered_Swaps_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Excel file downloaded');
 }
+function exportCounts(){
+  const cc=(state.rows||[]).filter(x=>x.counted&&x.cnt&&x.cnt.date).sort((a,b)=>Math.abs(b.cnt.diff||0)-Math.abs(a.cnt.diff||0));
+  if(!cc.length){toast('No physical counts on file');return;}
+  const rows=cc.map(x=>({
+    'Can #':x.code,'Description':x.desc,'LTO':x.isLTO?'Y':'N','Counted on':dstr(x.cnt.date),
+    'NetStock (system) on hand':Math.round(x.sysOnHand||0),'Physical count':Math.round(x.cnt.phys||0),
+    'Variance (physical − NetStock)':Math.round(x.cnt.diff||0),
+    'Large gap':Math.abs(x.cnt.diff||0)>Math.max((x.sysOnHand||0)*0.1,5000)?'⚠ YES':''
+  }));
+  rows.push({'Can #':'TOTAL','Description':cc.length+' counted','LTO':'','Counted on':'',
+    'NetStock (system) on hand':Math.round(cc.reduce((a,x)=>a+(x.sysOnHand||0),0)),
+    'Physical count':Math.round(cc.reduce((a,x)=>a+(x.cnt.phys||0),0)),
+    'Variance (physical − NetStock)':Math.round(cc.reduce((a,x)=>a+(x.cnt.diff||0),0)),'Large gap':''});
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:9},{wch:36},{wch:5},{wch:11},{wch:22},{wch:14},{wch:24},{wch:10}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Count Variances');
+  XLSX.writeFile(wb,'Can_Count_Variances_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('Excel file downloaded');
+}
 function exportStale(){
   const rows=(state.stale||[]).map(s=>({
     'Can #':s.code,'Description':s.desc,'On hand':Math.round(s.onHand),'Days of supply':s.dos===Infinity?null:(s.daily>0?+(s.onHand/s.daily).toFixed(1):null),'PO #':s.p.po,'Open qty':Math.round(s.p.qty),
@@ -5314,7 +5368,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v80 · orders now follow build→FG→ship: firm PA adds cans only where finished goods run out (+FG/cans toggle) · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v82 · board: Physical count vs NetStock section — per-can variance + total · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
