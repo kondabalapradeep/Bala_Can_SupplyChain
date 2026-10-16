@@ -363,6 +363,11 @@ table.plantb{border-collapse:separate;border-spacing:0;font-size:11.5px;min-widt
 .pwk td.neg{color:var(--red);font-weight:800}
 .pwk td.pos{color:var(--green);font-weight:700}
 .pwk tr:last-child td{border-bottom:none}
+.pwkUnitbar{display:inline-flex;gap:0;margin-bottom:7px;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.pwkUnitBtn{font-size:11px;font-weight:700;padding:4px 12px;border:none;background:#fff;color:var(--dim);cursor:pointer}
+.pwkUnitBtn.on{background:var(--blue);color:#fff}
+.pwkUnit[data-unit="fg"] .u-cans{display:none}
+.pwkUnit[data-unit="cans"] .u-fg{display:none}
 .dosboost{background:#f7fafd;border:1px solid #dce8f5;border-radius:12px;padding:10px 14px;margin:0 0 14px}
 .dosboost .db-h{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#4a6a92;margin-bottom:6px}
 .dosboost .db-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;padding:3px 0;border-bottom:1px dashed #e4edf6}
@@ -1042,6 +1047,7 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
         <li><b>Expedite + new PO together.</b> When a late inbound PO is expedited but still leaves the can below its cover target, the residual is <b>also placed as a new PO</b> — both actions are shown, not just the expedite.</li>
         <li><b>LTO rule.</b> LTO cans are ordered on firm PA + the production plan only; leftover forecast never triggers a callout (details below).</li>
         <li><b>Committed plan is checked gross — including firm PA inside it.</b> The production plan is a confirmed build: the line consumes a can per case for the full plan, regardless of finished-goods (FG) stock OR of firm sales orders that sit inside the plan. Two things that used to quietly shrink the plan's can demand are now fixed — (a) FG on-hand no longer nets against the plan, and (b) firm PA that the plan already builds is counted in the plan layer instead of being carved out and then erased by FG on-hand. FG on-hand still nets forecast, and firm orders <i>beyond</i> the plan. Result: the dossier's "Production plan" coverage now equals the Consumption Planner grid, so the true shortfall is always flagged and ordered for (previously a plan could read "short 1,600" or even "covered" when the grid showed it short 17,000+ — worst on LTOs with FG stock).</li>
+        <li><b>Firm PA is covered through finished goods — the real build-to-ship flow.</b> Can demand now = the committed plan build + <b>only</b> the extra build needed where finished goods actually run out against firm orders + forecast beyond the build. The engine walks a cumulative finished-goods inventory (FG on-hand + plan builds − firm-PA ships): where FG stays positive, firm PA adds <b>zero</b> cans (the build already makes what ships), so there is no over-ordering; where FG goes negative, that gap is the plan under-building, and its extra cans are added and timed to arrive in time. Each can's dossier shows this as the 🔄 <b>Finished-goods projection</b> (toggle between finished-goods cases and cans). A can with no plan and no firm PA is still planned on forecast (LTO items excepted).</li>
       </ol></div>
 
     <h3>📊 Board — the daily action list</h3>
@@ -1857,7 +1863,7 @@ function compute(){
     // Plan supersedes forecast where it exists (the plan is the committed build — cans are needed for every case it
     // builds, gross, regardless of finished-goods stock). Forecast fills periods/weeks the plan doesn't reach. PA is the firm portion of the build.
     const rate=new Float64Array(H),paRate=new Float64Array(H),planRate=new Float64Array(H),fcRate=new Float64Array(H);
-    let hasFc=false,hasPA=false,hasPlan=false,lastEo=-1,lastFcR=0,paInPlanTot=0;
+    let hasFc=false,hasPA=false,hasPlan=false,lastEo=-1,lastFcR=0;
     const ltoFG=isLTOfg(fg);   // LTO finished goods are ordered on firm PA + production plan ONLY — forecast never drives their order callouts (it's still shown on the Forecast page). This stops LTOs from flagging "order now" when the 13-week plan already covers them.
     const f27=state.forecast27?state.forecast27[fg]:null;
     const FISCALFC=state.forecast27?FISCAL_ALL:FISCAL26;   // extend demand into 2027 periods only when a 2027 forecast is loaded
@@ -1872,7 +1878,6 @@ function compute(){
       let periodPA=0;for(const l of elines){if(l.edate&&l.edate>=P.sd&&l.edate<=P.ed)periodPA+=l.qty;}  // bucket PA by need-by (ship − ship-ahead)
       if(periodFcRaw>0&&!ltoFG)hasFc=true;if(planP>0)hasPlan=true;
       const base=Math.max(planP,periodPA);                                    // the committed build (plan, or firm PA if it exceeds the plan)
-      paInPlanTot+=Math.min(planP,periodPA);                                  // firm PA that the committed plan already builds — belongs to the (gross) plan layer, not double-counted as PA
       const fcBeyond=ltoFG?0:Math.max(0,periodFcRaw-base);                    // forecast ONLY beyond the committed build (no double-count) — ZERO for LTO FGs so forecast never drives their orders
       // plan → time-phased by its OWN weekly columns (matches the Consumption Plan page), GROSS: the committed build needs a can per case regardless of firm PA or finished-goods stock
       if(planP>0){for(const w of pw){if(w.date>=P.sd&&w.date<=P.ed){const wd=Math.round((w.date-T)/DAY),r=(w.qty||0)/7;for(let dd=wd;dd<wd+7;dd++){const idx=Math.max(0,dd);if(idx<H)planRate[idx]+=r;}}}}  // full week conserved (elapsed days pile onto today)
@@ -1881,26 +1886,35 @@ function compute(){
     }
     if(hasFc&&lastEo>=0&&lastEo<H-1)for(let dd=lastEo+1;dd<H;dd++)fcRate[dd]+=lastFcR;   // forecast tail rolls on; plan ends at its horizon
     for(const l of elines){if(l.qty>0){hasPA=true;const dd=l.edate?Math.round((l.edate-T)/DAY):0;const at=dd<0?0:(dd<H?dd:null);if(at!=null)paRate[at]+=l.qty;}}  // firm PA pulled ship-ahead days before ship date
-    // Remove the firm PA the committed plan already builds — it now lives in the (gross) plan layer. Only PA that EXCEEDS the
-    // plan (or has no plan behind it) stays on the PA layer, where finished-goods on-hand may cover it. This keeps the plan's
-    // can demand whole: firm PA sitting inside the plan can no longer be quietly erased by finished-goods stock.
-    for(let dd=0,rem=paInPlanTot;dd<H&&rem>0;dd++){const cut=Math.min(rem,paRate[dd]);paRate[dd]-=cut;rem-=cut;}
     const noForecast=!hasFc&&hasPA;
     if(!hasFc&&!hasPA&&!hasPlan)continue;
-    // FG on-hand covers demand PA first, then forecast — but NEVER the committed production plan.
-    // The plan is a confirmed build: to run a build the line consumes a can for every case, no matter how much
-    // finished product sits in the warehouse. So finished-goods on-hand ships firm orders and defers forecast building,
-    // but it does NOT reduce the cans the plan needs. (Netting it against the plan hid real plan shortfalls — e.g. an
-    // LTO with no PA/forecast would flip straight to "covered.") This keeps the board's plan layer gross = the grid.
-    const qoh=pa?pa.qoh:0;let coh=qoh;
-    for(const L of [paRate,fcRate]){for(let dd=0;dd<H&&coh>0;dd++){const cov=Math.min(coh,L[dd]);L[dd]-=cov;coh-=cov;}}
-    for(let dd=0;dd<H;dd++)rate[dd]=paRate[dd]+planRate[dd]+fcRate[dd];
+    // ---- FINISHED-GOODS FLOW — the real demand-planning model ----
+    // The production plan BUILDS finished goods (consuming cans); firm PA SHIPS finished goods. Walk a CUMULATIVE
+    // finished-goods inventory: start at FG on-hand, each day add the plan build and subtract the firm-PA ships. Firm
+    // PA creates EXTRA can demand ONLY on the days finished goods run out — i.e. only where the plan under-builds vs the
+    // firm orders. If the plan builds enough FG to cover the orders, firm PA adds ZERO cans (no over-ordering). Builds
+    // pile up as FG across weeks, so a build in one week covers orders in later weeks (cumulative, not per-period).
+    const qoh=pa?pa.qoh:0;
+    // Finished goods leave on the ACTUAL ship date (that's when FG depletes); the plan build adds FG on its plan date.
+    const paShip=new Float64Array(H);
+    for(const l of elines){if(l.qty>0){const dd=l.date?Math.round((l.date-T)/DAY):0;const at=dd<0?0:(dd<H?dd:null);if(at!=null)paShip[at]+=l.qty;}}
+    const paExtra0=new Float64Array(H);
+    let fgBal=qoh;
+    for(let dd=0;dd<H;dd++){fgBal+=planRate[dd];fgBal-=paShip[dd];if(fgBal<0){paExtra0[dd]=-fgBal;fgBal=0;}}
+    // the extra build's cans must be in-house SHIPAHEAD days before the shortfall → pull that extra demand earlier so cans land in time
+    const paExtra=new Float64Array(H);
+    for(let dd=0;dd<H;dd++){if(paExtra0[dd]>0)paExtra[Math.max(0,dd-SHIPAHEAD)]+=paExtra0[dd];}
+    // forecast-beyond-the-build nets only finished goods the firm orders didn't already consume (leftover on-hand)
+    let coh=Math.max(0,qoh-paShip.reduce((a,b)=>a+b,0));
+    for(let dd=0;dd<H&&coh>0;dd++){const cov=Math.min(coh,fcRate[dd]);fcRate[dd]-=cov;coh-=cov;}
+    // CAN DEMAND = the committed plan build + extra build to cover firm orders the plan misses + forecast beyond the build
+    for(let dd=0;dd<H;dd++)rate[dd]=planRate[dd]+paExtra[dd]+fcRate[dd];
     let daily=0;for(let dd=0;dd<60;dd++)daily+=rate[dd];daily/=60;
     if(daily<=0)daily=rate.reduce((a,b)=>a+b,0)/H;
     let paDay=null,paCust=null,paDate=null;
     if(lines.length){const ls=[...elines].filter(l=>l.edate).sort((a,b)=>a.edate-b.edate);let c=0;for(const l of ls){c+=l.qty;if(c>qoh){paDay=Math.max(0,Math.round((l.edate-T)/DAY));paCust=l.cust;paDate=l.date;break;}}}  // paDay = in-house need day (ship−ahead); paDate = true ship date for display
     const coverF=Math.min(90,daily>0?qoh/daily:0);
-    fgUse[fg]={rate,paRate,planRate,fcRate,daily,start:0,coverF,paDay,paCust,paDate,qoh,noForecast,hasPA,hasPlan,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
+    fgUse[fg]={rate,paRate,planRate,fcRate,paExtra,daily,start:0,coverF,paDay,paCust,paDate,qoh,noForecast,hasPA,hasPlan,orders:pa?pa.orders:0,custMatch:CF.size?lines.length>0:true};
   }
   // ---- item transitions: redirect demand from an OLD can to its NEW can (when ready for order) ----
   const transByOld={},transByNew={};
@@ -1922,7 +1936,7 @@ function compute(){
       }
     }
   }
-  const dem={},drivers={},paDem={},planDem={},fcDem={};
+  const dem={},drivers={},paDem={},planDem={},fcDem={},paExtraDem={};
   for(const fg in fgUse){
     const u=fgUse[fg];
     const comps=state.billMap[fg]||comboComps(fg);if(!comps)continue;
@@ -1932,8 +1946,9 @@ function compute(){
       const pA=paDem[targetCan]=paDem[targetCan]||new Float64Array(H);
       const plA=planDem[targetCan]=planDem[targetCan]||new Float64Array(H);
       const fcA=fcDem[targetCan]=fcDem[targetCan]||new Float64Array(H);
+      const peA=paExtraDem[targetCan]=paExtraDem[targetCan]||new Float64Array(H);
       const s=Math.max(0,Math.floor(u.start)||0);const q=comp.qty;
-      for(let d=s;d<H;d++){arr[d]+=u.rate[d]*q;pA[d]+=u.paRate[d]*q;plA[d]+=u.planRate[d]*q;fcA[d]+=u.fcRate[d]*q;}   // per-day rate × cans-per-case, kept split by priority layer
+      for(let d=s;d<H;d++){arr[d]+=u.rate[d]*q;pA[d]+=u.paRate[d]*q;plA[d]+=u.planRate[d]*q;fcA[d]+=u.fcRate[d]*q;peA[d]+=(u.paExtra[d]||0)*q;}   // per-day rate × cans-per-case, kept split by priority layer
       (drivers[targetCan]=drivers[targetCan]||[]).push({fg,rate:u.daily*comp.qty,start:s,paDay:u.paDay,paCust:u.paCust,paDate:u.paDate,qoh:u.qoh,custMatch:u.custMatch,transFrom:movedFrom,noForecast:u.noForecast,hasPA:u.hasPA,hasPlan:u.hasPlan});
     }
   }
@@ -1944,7 +1959,7 @@ function compute(){
   for(const tr of (state.transitions||[])){
     const mode=transMode(tr);if(mode==='off')continue;
     const oc=tr.oldCan,nc=tr.newCan;transOut.add(oc);
-    const maps=[dem,paDem,planDem,fcDem];
+    const maps=[dem,paDem,planDem,fcDem,paExtraDem];
     maps.forEach(m=>{m[oc]=m[oc]||new Float64Array(H);m[nc]=m[nc]||new Float64Array(H);});
     if(mode==='hard'){
       for(let i=0;i<H;i++)maps.forEach(m=>{m[nc][i]+=m[oc][i];m[oc][i]=0;});
@@ -2123,9 +2138,13 @@ function compute(){
     // demand is met, cumulative on-hand + PO arrivals so far falls below cumulative demand — so a PO that lands AFTER
     // the demand's date does not cover it.
     const tpShort=(dem)=>{let cumD=0,cumS=onHand,worst=0,day=-1;for(let i=0;i<H;i++){cumS+=arrivals[i]||0;cumD+=dem[i]||0;const s=cumD-cumS;if(s>0.5&&day<0)day=i;if(s>worst)worst=s;}return {short:Math.max(0,Math.round(worst)),day};};
-    const paS=tpShort(paA),planS=tpShort(planA),fcS=tpShort(fcA);
+    const planS=tpShort(planA),fcS=tpShort(fcA);
+    // Firm-PA "short" is now the FINISHED-GOODS shortfall: the firm orders the plan + finished goods can't cover
+    // (already net of FG on-hand and the plan's builds). Zero = the plan builds enough FG to fill every firm order.
+    const paExtraA=paExtraDem[code]||new Float64Array(H);
+    let paExtraTot=0,paExtraDay=-1;for(let i=0;i<H;i++){if(paExtraA[i]>0){paExtraTot+=paExtraA[i];if(paExtraDay<0)paExtraDay=i;}}
     const layers={pa:paTot,plan:planTot,fc:fcTot,supply:onHand+incoming,
-      paShort:paS.short,paShortDay:paS.day,planShort:planS.short,planShortDay:planS.day,fcShort:fcS.short,fcShortDay:fcS.day};
+      paShort:Math.round(paExtraTot),paShortDay:paExtraDay,planShort:planS.short,planShortDay:planS.day,fcShort:fcS.short,fcShortDay:fcS.day};
     out.push({code,desc:st.desc,supplier:st.supplier,ns:st.ns,ss:st.ss,onHand,counted,cnt,sysOnHand:st.onHand,
       oz:sz.oz,size:sz.size,pallet:sz.pallet,
       adjusted:!!(cnt&&cnt.adjusted&&cnt.counted),cntEntry:cnt,
@@ -4601,7 +4620,7 @@ function openModal(code){
         ${fcTile}
       </div>
       <div class="why"><h4>What these three tell you</h4><ul>
-        <li><b>Firm PA</b> — the committed sales orders behind this can. <b>${paOverall==='covered'?'Covered:':paOverall==='short'?'Short:':'None:'}</b> ${paTot<=0?'no firm sales orders map to this can yet — demand here is plan/forecast-driven.':(paShort<=0?'your on-hand plus open POs cover every firm order in time.':`on-hand + POs fall short by <b>${fmt(paShort)}</b> cans — this is the most urgent gap to close.`)}</li>
+        <li><b>Firm PA</b> — the committed sales orders behind this can. <b>${paOverall==='covered'?'Covered:':paOverall==='short'?'Short:':'None:'}</b> ${paTot<=0?'no firm sales orders map to this can yet — demand here is plan/forecast-driven.':(paShort<=0?'the production plan + finished goods on hand build enough to ship every firm order — no extra cans needed for PA.':`finished goods run short by <b>${fmt(paShort)}</b> cans against firm orders — the plan isn’t building enough, so that extra build (and its cans) is added here.`)}</li>
         <li><b>Production plan</b> — the 13-week build for this can. <b>${planOverall==='covered'?'Covered:':planOverall==='short'?'Short:':'None:'}</b> ${planTot<=0?'this can is not on the current production plan.':(planShort<=0?'the plan build is fully covered by on-hand + POs.':`the plan build is short by <b>${fmt(planShort)}</b> cans — order to protect the build.`)}</li>
         <li><b>Forecast days of supply</b> — beyond firm orders and the plan, how long today's on-hand lasts against the <b>forecast</b> alone${fcDaily>0?` (at ~${fmt(Math.round(fcDaily))} cans/day)`:''}. This is your forward runway once the committed demand is met; keep it inside your ${x.bMin!=null?`${x.bMin}–${x.bMax}-day`:'target'} band.</li>
       </ul></div>`;
@@ -4633,6 +4652,38 @@ function openModal(code){
     const poRow=hasPO?`<tr><td class="pwk-lbl">+ PO in</td>`+cells.map(c=>`<td class="${c.po>0?'pos':''}">${c.po>0?'+'+fmt(Math.round(c.po)):'—'}</td>`).join('')+`<td class="pwk-tot pos">+${fmt(Math.round(totPO))}</td></tr>`:'';
     const endRow=`<td class="pwk-lbl">End bal</td>`+cells.map(c=>`<td class="${c.end<0?'neg':'pos'}"><b>${fmt(Math.round(c.end))}</b></td>`).join('')+`<td class="pwk-tot ${bal<0?'neg':'pos'}"><b>${fmt(Math.round(bal))}</b></td>`;
     return `<div class="pwk-wrap"><table class="pwk"><tr class="pwk-hd">${hdr}</tr><tr>${buildRow}</tr>${poRow}<tr class="pwk-end">${endRow}</tr></table></div>`;
+  })();
+  // ---- finished-goods projection (can-equivalents): build RAISES FG, firm PA ships DEPLETE it. Shows whether the plan
+  // builds enough FG to cover the orders — red FG-end = the plan is short of firm orders (a planning gap, not a can gap). ----
+  const fgProj=(()=>{
+    if(!state.prodPlan)return '';
+    const pd=prodPlanData();if(!pd)return '';
+    const pr=pd.rows.find(r=>r.code===x.code);
+    if(!pr||!pr.planned)return '';
+    const weeks=ppWeekDates(T);if(!weeks.length)return '';
+    let fgStart=0;for(const d of (x.drivers||[])){const pa=state.pa&&state.pa[d.fg];if(pa&&pa.qoh)fgStart+=pa.qoh*(perOf(d.fg)||0);}
+    if(!soRows.length&&fgStart<=0)return '';                 // nothing ships — projection not meaningful
+    const nW=weeks.length,shipW=new Array(nW).fill(0);
+    for(const r of soRows){if(!r.date)continue;const sc=r.fgQty*(perOf(r.fg)||0);if(sc<=0)continue;
+      let idx=-1;for(let i=0;i<nW;i++){if(r.date<=addD(weeks[i].sd,6)){idx=i;break;}}  // first week ending on/after the ship date
+      if(idx<0)idx=nW-1;                                    // ships past the last week fold into it
+      shipW[idx]+=sc;}
+    let fg=fgStart,totBuild=0,totShip=0;
+    const cells=weeks.map((w,i)=>{const build=pr.wk.get(+w.date)||0,ship=shipW[i];const end=fg+build-ship;fg=end;totBuild+=build;totShip+=ship;return {label:dstr(w.sd),build,ship,end};});
+    const per=(x.drivers&&x.drivers.length&&perOf(x.drivers[0].fg))||0;   // cans per case of the primary finished good — for the FG⇄cans toggle
+    const hasTog=per>0;
+    const tbl=(unit)=>{const cv=v=>(unit==='fg'&&hasTog)?Math.round(v/per):Math.round(v);
+      const hdr=`<th class="pwk-lbl">Week of</th>`+cells.map(c=>`<th>${c.label}</th>`).join('')+`<th class="pwk-tot">Horizon</th>`;
+      const bRow=`<td class="pwk-lbl">🏭 + Build → FG</td>`+cells.map(c=>`<td class="${c.build>0?'pos':''}">${c.build>0?'+'+fmt(cv(c.build)):'—'}</td>`).join('')+`<td class="pwk-tot pos"><b>+${fmt(cv(totBuild))}</b></td>`;
+      const sRow=`<td class="pwk-lbl">📦 − Ship (firm PA)</td>`+cells.map(c=>`<td class="${c.ship>0?'neg':''}">${c.ship>0?'−'+fmt(cv(c.ship)):'—'}</td>`).join('')+`<td class="pwk-tot neg"><b>−${fmt(cv(totShip))}</b></td>`;
+      const eRow=`<td class="pwk-lbl">= Finished-goods end</td>`+cells.map(c=>`<td class="${c.end<0?'neg':'pos'}"><b>${fmt(cv(c.end))}</b></td>`).join('')+`<td class="pwk-tot ${fg<0?'neg':'pos'}"><b>${fmt(cv(fg))}</b></td>`;
+      return `<div class="pwk-wrap"><table class="pwk"><tr class="pwk-hd">${hdr}</tr><tr>${bRow}</tr><tr>${sRow}</tr><tr class="pwk-end">${eRow}</tr></table></div>`;
+    };
+    const startFG=hasTog?Math.round(fgStart/per):Math.round(fgStart);
+    const unitNote=hasTog?`finished-goods <b>cases</b> (≈${fmt(Math.round(per))} cans/case) — toggle to cans`:`can-equivalents`;
+    const cap=`<div style="font-size:10.5px;color:var(--faint);margin:14px 0 6px"><b>🔄 Finished-goods projection</b> (${unitNote}) — the build converts cans into finished goods, firm-PA orders ship them out. Starts from FG on-hand ≈ <b>${hasTog?fmt(startFG)+' cases':fmt(Math.round(fgStart))}</b>. <span style="color:var(--red)">Red end</span> = the plan doesn't build enough to cover the orders — a <b>production-plan gap</b> (tell planning to build more), not a raw-can gap.</div>`;
+    if(!hasTog)return cap+tbl('cans');
+    return cap+`<div class="pwkUnit" data-unit="fg"><div class="pwkUnitbar"><button class="pwkUnitBtn on" data-u="fg">📦 Finished goods</button><button class="pwkUnitBtn" data-u="cans">🥫 Cans</button></div><div class="u-fg">${tbl('fg')}</div><div class="u-cans">${tbl('cans')}</div></div>`;
   })();
   const inv=x.counted&&x.cnt
     ?`<tr><td>NetStock on hand <b>(used)</b></td><td><b>${fmt(x.sysOnHand)}</b></td></tr><tr><td>📋 Physical count (${dstr(x.cnt.date)})</td><td>${fmt(x.cnt.phys)}</td></tr><tr><td>Variance vs NetStock</td><td class="${x.cnt.diff<0?'neg':'pos'}">${x.cnt.diff>=0?'+':''}${fmt(x.cnt.diff)}</td></tr>`
@@ -4693,8 +4744,9 @@ function openModal(code){
              <div class="mh" style="margin-top:14px">Open purchase orders</div><table class="mt">${pos}</table></div>
       </div>
       ${planWk?`<div class="mh" style="margin-top:16px">🏭 Production plan — weekly build for this can</div>
-      <div style="font-size:10.5px;color:var(--faint);margin:-2px 0 6px"><b>Build need</b> = the plan's cases × BOM cans-per-case, week by week (laid out like the production-plan file). <b>End bal</b> = the running on-hand after each week (− build + PO arrivals), starting from today's NetStock on-hand; <span style="color:var(--red)">red</span> = projected short. Ties to the Consumption Planner grid.</div>
-      ${planWk}`:''}
+      <div style="font-size:10.5px;color:var(--faint);margin:-2px 0 6px"><b>Build need</b> = the plan's cases × BOM cans-per-case, week by week (laid out like the production-plan file). <b>End bal</b> = the running <b>can</b> on-hand after each week (− build + PO arrivals), starting from today's NetStock on-hand; <span style="color:var(--red)">red</span> = projected short of <b>cans</b>. Ties to the Consumption Planner grid.</div>
+      ${planWk}
+      ${fgProj}`:''}
       <div class="mh" style="margin-top:16px">Sales orders (firm PA) driving this can</div>
       <table class="mt sotable">${so}</table>
     </div>
@@ -4703,6 +4755,7 @@ function openModal(code){
   $('#mx').onclick=$('#mclose').onclick=()=>$('#ovl').classList.remove('show');
   $('#mexp').onclick=()=>exportRows([x],'Can_'+x.code);
   $('#mpdf').onclick=()=>downloadItemPDF(x.code);
+  document.querySelectorAll('#modal .pwkUnitBtn').forEach(btn=>btn.onclick=()=>{const w=btn.closest('.pwkUnit');if(!w)return;w.dataset.unit=btn.dataset.u;w.querySelectorAll('.pwkUnitBtn').forEach(o=>o.classList.toggle('on',o===btn));});
 }
 function printModal(){document.body.classList.add('printing');setTimeout(()=>{window.print();setTimeout(()=>document.body.classList.remove('printing'),600);},60);}
 function downloadItemPDF(code){
@@ -5261,7 +5314,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v78 · dossier: horizontal weekly production-plan grid (weeks across, like the plan file) · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v80 · orders now follow build→FG→ship: firm PA adds cans only where finished goods run out (+FG/cans toggle) · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 
