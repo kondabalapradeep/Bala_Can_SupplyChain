@@ -1018,6 +1018,13 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
     <button class="btn ghost" id="btnFlexApply" style="padding:7px 13px">Apply</button>
     <div class="set" id="flexCount" style="color:var(--faint)"></div>
   </div>
+  <div class="bar ignorebar">
+    <div class="set" style="font-weight:800;color:var(--ink)">🚫 Ignore cans</div>
+    <div class="set" style="color:var(--faint)">dropped from the board, order recommendations, swaps &amp; the production-plan grid — enter codes for cans you don't manage here</div>
+    <input id="ignoreList" class="floorinput" title="Comma-separated can codes to IGNORE — removed from every calculation and every view" value="" placeholder="e.g. 12001, 12002">
+    <button class="btn ghost" id="btnIgnoreApply" style="padding:7px 13px">Apply</button>
+    <div class="set" id="ignoreCount" style="color:var(--faint)"></div>
+  </div>
 
   <div class="pgrid" id="pgrid"></div>
   <div id="planner" style="display:none"></div>
@@ -1238,7 +1245,7 @@ function custOK(code){if(!state.cust.size)return true;const r=(state.rows||[]).f
 
 const state={
   stock:null,pa:null,po:null,count:null,
-  forecast:EMB.forecast,forecast27:null,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,ltoFg:new Set(EMB.ltoFg||[]),ltoOnly:false,ltoSplit:50,policies:[],flexed:new Set(),
+  forecast:EMB.forecast,forecast27:null,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,ltoFg:new Set(EMB.ltoFg||[]),ltoOnly:false,ltoSplit:50,policies:[],flexed:new Set(),ignored:new Set(),
   files:{stock:null,pa:null,po:null,count:null,dsc:null,swapdec:null,expdec:null,trans:null,prodplan:null,forecast:'built-in',forecast27:null,bom:'built-in'},count:null,
   rows:[],q:'',qOpen:false,sizeFilter:'all',showAll:false,expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',ppMode:'wk',ppView:'grid',ppTarget:2,covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,floorMin:7,floorMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},transitions:[],prodPlan:null,prodPlanDesc:{},swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
   floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
@@ -2031,6 +2038,7 @@ function compute(){
   for(const p of (state.policies||[])){for(const c of (p.cans||[])){const cc=String(c).trim();if(cc&&canPol[cc]==null)canPol[cc]=p;}}
   const allCans=new Set([...Object.keys(state.stock),...Object.keys(dem)]);
   for(const code of allCans){
+    if(state.ignored&&state.ignored.has(code))continue;   // 🚫 user-ignored can — dropped from the board, orders, swaps & every calc
     const st=state.stock[code]||{code,desc:state.canDesc[code]||('Can '+code),onHand:0,lt:null,supplier:'DS CONTAINERS',ns:'',ss:0,rc:0,onOrderSys:0};
     const sz=sizeOf(st.desc);
     const cnt=state.count?state.count[code]:null;
@@ -3258,6 +3266,7 @@ function prodPlanData(){
   }
   const rows=[];
   for(const code in canMap){
+    if(state.ignored&&state.ignored.has(code))continue;   // 🚫 user-ignored can — keep it off the production-plan grid too
     const cm=canMap[code];const wk=cm.wk;
     const row=state.rows.find(r=>r.code===code);const st=state.stock[code];
     const onHand=row?row.onHand:(st?st.onHand:0);
@@ -5379,6 +5388,15 @@ function applyFlex(){
   compute();
 }
 if($('#btnFlexApply'))$('#btnFlexApply').onclick=applyFlex;
+function applyIgnore(){
+  const codes=($('#ignoreList')||{}).value?$('#ignoreList').value.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s)):[];
+  state.ignored=new Set(codes);
+  const ic=$('#ignoreCount');if(ic)ic.textContent=codes.length?codes.length+' ignored — hidden everywhere':'';
+  try{localStorage.setItem('canDash_ignore',[...state.ignored].join(','));}catch(e){}
+  compute();
+}
+if($('#btnIgnoreApply'))$('#btnIgnoreApply').onclick=applyIgnore;
+if($('#ignoreList'))$('#ignoreList').addEventListener('keydown',e=>{if(e.key==='Enter')applyIgnore();});
 $('#btnHelp').onclick=()=>{renderWorkedExample();$('#helpdrawer').classList.add('show');$('#helpovl').classList.add('show');};
 $('#tabBoard').onclick=()=>{state.page='board';render();};
 $('#tabPlan').onclick=()=>{state.page='plan';render();};
@@ -5395,9 +5413,10 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v85 · 13-week plan updated to wk of 2026-10-12 (289 FGs) + now baked into the file & carried in Live snapshots · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v85.1 · added Ignore-cans box (enter codes to drop cans from board/orders/swaps/plan); DSC lock unchanged from v85 · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
+try{const ix=localStorage.getItem('canDash_ignore');if(ix){const codes=ix.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.ignored=new Set(codes);const ie=$('#ignoreList');if(ie)ie.value=codes.join(', ');const ic=$('#ignoreCount');if(ic)ic.textContent=codes.length?codes.length+' ignored — hidden everywhere':'';}}catch(e){}
 
 /* ---------- live HTML snapshot: share the whole dashboard with data embedded ---------- */
 function exportLiveHTML(){
@@ -5409,7 +5428,7 @@ function exportLiveHTML(){
     expDec:state.expDec||{},
     forecast:state.forecast,forecast27:state.forecast27,billMap:state.billMap,fgDesc:state.fgDesc,canDesc:state.canDesc,files:state.files,
     ltoFg:[...state.ltoFg],ltoSplit:state.ltoSplit,policies:state.policies,
-    floor:[...state.floor],coman:[...state.coman],cust:[...state.cust],flexed:[...state.flexed],flexList:($('#flexList')||{}).value,
+    floor:[...state.floor],coman:[...state.coman],cust:[...state.cust],flexed:[...state.flexed],flexList:($('#flexList')||{}).value,ignored:[...state.ignored],ignoreList:($('#ignoreList')||{}).value,
     comanMin:state.comanMin,comanMax:state.comanMax,gMinDOS:state.gMinDOS,gIdealDOS:state.gIdealDOS,gMaxDOS:state.gMaxDOS,
     bandOverride:state.bandOverride,custBand:state.custBand,
     settings:Object.fromEntries(['setLT','setBuf','setTruck','setCov','setMinDOS','setIdealDOS','setMaxDOS','setFLT','setMOQ','setMinSwap','setSwapWin','setSwapTol','setStale','setRemnant','setDscLock','setComanMin','setComanMax'].map(id=>[id,(document.getElementById(id)||{}).value])),
@@ -5451,6 +5470,7 @@ $('#btnLiveHTML').onclick=exportLiveHTML;
       state.swapDec={pair:(S.swapDec&&S.swapDec.pair)||{},poNo:new Set((S.swapDec&&S.swapDec.poNo)||[]),declinedFor:(S.swapDec&&S.swapDec.declinedFor)||{}};
       state.floor=new Set(S.floor||[]);state.coman=new Set(S.coman||[]);state.cust=new Set(S.cust||[]);
       if(S.flexed){state.flexed=new Set(S.flexed);const fe=$('#flexList');if(fe&&S.flexList!=null)fe.value=S.flexList;const fc=$('#flexCount');if(fc)fc.textContent=state.flexed.size+' flexed-in';}
+      if(S.ignored){state.ignored=new Set(S.ignored);const ie=$('#ignoreList');if(ie&&S.ignoreList!=null)ie.value=S.ignoreList;const ic=$('#ignoreCount');if(ic)ic.textContent=state.ignored.size?state.ignored.size+' ignored — hidden everywhere':'';}
       if(S.settings)for(const id in S.settings){const el=document.getElementById(id);if(el&&S.settings[id]!=null&&S.settings[id]!=='')el.value=S.settings[id];}
       if(S.floorList&&$('#floorList'))$('#floorList').value=S.floorList;
       compute();
