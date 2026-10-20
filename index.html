@@ -991,7 +991,7 @@ header{background:rgba(251,249,245,.74)!important;border-bottom:1px solid var(--
     <div class="set" style="font-weight:800;color:var(--ink)">🏭 Floor stock @ DSC</div>
     <div class="set">quick-turn lead <input id="setFLT" type="number" value="7">d</div>
     <div class="set" title="Floor-stock cans are held to this tight days-of-supply band so you don't over-order what DSC keeps on quick-turn">hold <input id="setFloorMin" type="number" value="7" style="width:44px">–<input id="setFloorMax" type="number" value="14" style="width:44px">d</div>
-    <input id="floorList" class="floorinput" title="Comma-separated can codes DSC keeps as floor stock" value="12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020">
+    <input id="floorList" class="floorinput" title="Comma-separated can codes DSC keeps as floor stock" value="12904,12905,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020,12354,12356,12844,12845,12818,12817,12131,12891,12825,12826,12827">
     <button class="btn ghost" id="btnFloorApply" style="padding:7px 13px">Apply</button>
     <div class="set" id="floorCount"></div>
     <div class="set" style="margin-left:auto;font-weight:700;color:#2f5da8">📋 Customer days-of-supply policy</div>
@@ -1248,7 +1248,7 @@ const state={
   forecast:EMB.forecast,forecast27:null,billMap:EMB.billMap,fgDesc:EMB.fgDesc,canDesc:EMB.canDesc,ltoFg:new Set(EMB.ltoFg||[]),ltoOnly:false,ltoSplit:50,policies:[],flexed:new Set(),ignored:new Set(),
   files:{stock:null,pa:null,po:null,count:null,dsc:null,swapdec:null,expdec:null,trans:null,prodplan:null,forecast:'built-in',forecast27:null,bom:'built-in'},count:null,
   rows:[],q:'',qOpen:false,sizeFilter:'all',showAll:false,expanded:{},sec:{orders:true,swaps:true,tracker:true},page:'board',planMode:'wk',ppMode:'wk',ppView:'grid',ppTarget:2,covFilter:'ALL',coman:new Set(['Conagra','Rubix','Danone','Nestle']),comanMin:7,comanMax:14,floorMin:7,floorMax:14,gMinDOS:14,gIdealDOS:45,gMaxDOS:60,bandOverride:{},custBand:{},cust:new Set(),custOpen:false,custQ:'',swapDec:{pair:{},poNo:new Set(),declinedFor:{}},expDec:{},transitions:[],prodPlan:null,prodPlanDesc:{},swaps:[],queue:[],expedites:[],dsc:null,dscTot:null,poPlan:{now:[],week:[]},stale:[],
-  floor:new Set("12246,12007,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020".split(','))
+  floor:new Set("12904,12905,12838,12695,12263,12440,12050,12610,12993,12174,12175,12872,12871,12427,12032,12033,12979,12771,12772,12210,12773,12774,12830,12832,12026,12020,12354,12356,12844,12845,12818,12817,12131,12891,12825,12826,12827".split(','))
 };
 
 /* ---------- built-in 13-week production plan (embedded) ---------- */
@@ -5413,7 +5413,7 @@ $('#floorList').addEventListener('keydown',e=>{if(e.key==='Enter')applyFloor();}
 $('#floorCount').textContent=state.floor.size+' cans on quick-turn';
 $('#hdToday').textContent=today().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 $('#hmPeriod').textContent='Period '+(today().getMonth()+1)+' · today '+dstr(today());
-if($('#hdBuild'))$('#hdBuild').textContent='BUILD v85.1 · added Ignore-cans box (enter codes to drop cans from board/orders/swaps/plan); DSC lock unchanged from v85 · '+new Date().toISOString().slice(0,10);
+if($('#hdBuild'))$('#hdBuild').textContent='BUILD v85.2 · floor-stock list updated to 2026 Q4 DSC Rev 9.25 (37 cans); Ignore-cans box kept; DSC lock unchanged from v85 · '+new Date().toISOString().slice(0,10);
 loadPolicies();   // restore locked policies saved in this browser (a shared snapshot, loaded below, overrides them)
 try{const fx=localStorage.getItem('canDash_flex');if(fx){const codes=fx.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.flexed=new Set(codes);const fe=$('#flexList');if(fe)fe.value=codes.join(', ');const fc=$('#flexCount');if(fc)fc.textContent=codes.length+' flexed-in';}}catch(e){}
 try{const ix=localStorage.getItem('canDash_ignore');if(ix){const codes=ix.split(/[\s,;]+/).map(s=>s.trim()).filter(s=>/^\d{4,6}$/.test(s));state.ignored=new Set(codes);const ie=$('#ignoreList');if(ie)ie.value=codes.join(', ');const ic=$('#ignoreCount');if(ic)ic.textContent=codes.length?codes.length+' ignored — hidden everywhere':'';}}catch(e){}
